@@ -38,9 +38,9 @@ interface MvxApi {
   ) : Single<List<Nft>>
 
   @GET("/accounts/{address}?withGuardianInfo=true")
-  fun getAccount(
+  suspend fun getAccount(
     @Path("address") address: String
-  ) : Single<Account>
+  ): Account
 
   @GET("/accounts/erd1qqqqqqqqqqqqqpgqqgzzsl0re9e3u0t3mhv3jwg6zu63zssd7yqs3uu9jk/nfts/count?collection=COW-cd463d")
   fun getStakingCowsCount() : Single<Int>
