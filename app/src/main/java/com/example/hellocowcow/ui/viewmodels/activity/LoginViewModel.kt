@@ -8,8 +8,6 @@ import com.reown.sign.client.Sign
 import com.reown.sign.client.SignClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import timber.log.Timber
-import timber.log.Timber.Forest.plant
-import timber.log.Timber.Forest.tag
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -17,10 +15,6 @@ import javax.inject.Inject
 class LoginViewModel @Inject constructor(
   private val wc: MyWalletConnect
 ) : BaseViewModel() {
-
-  init {
-    plant(Timber.DebugTree())
-  }
 
   var address: String = ""
 
@@ -42,11 +36,11 @@ class LoginViewModel @Inject constructor(
       if (accounts.isNotEmpty()) {
         onSessionAvailable(accounts, topic)
       } else {
-        tag("Session").d("No valid accounts found in the active session.")
+        Timber.tag("Session").d("No valid accounts found in the active session.")
         onNoSession()
       }
     } else {
-      tag("Session").d("No active session found.")
+      Timber.tag("Session").d("No active session found.")
       onNoSession()
     }
   }
@@ -65,11 +59,11 @@ class LoginViewModel @Inject constructor(
   ) {
     handleExistingSession(
       onSessionAvailable = { address, topic ->
-        tag("Session").d("Reusing existing session: Address=$address, Topic=$topic")
+        Timber.tag("Session").d("Reusing existing session: Address=$address, Topic=$topic")
         onSessionAvailable(address, topic)
       },
       onNoSession = {
-        tag("Session").d("No active session found, creating a new one.")
+        Timber.tag("Session").d("No active session found, creating a new one.")
         createNewConnection(pairingTopicPosition, onProposedSequence)
         onNoSession()
       }
@@ -91,7 +85,7 @@ class LoginViewModel @Inject constructor(
     }
 
     if (pairing == null) {
-      tag("ERROR").e("Failed to create or retrieve a pairing.")
+      Timber.tag("ERROR").e("Failed to create or retrieve a pairing.")
       return
     }
 
@@ -102,13 +96,15 @@ class LoginViewModel @Inject constructor(
       pairing = pairing
     )
 
-    SignClient.connect(connectParams,
+    SignClient.connect(
+      connectParams,
       onSuccess = {
         onProposedSequence(pairing.uri)
       },
       onError = { error ->
-        tag("ERROR").e(error.throwable.stackTraceToString())
+        Timber.tag("ERROR").e(error.throwable.stackTraceToString())
       }
     )
   }
+
 }

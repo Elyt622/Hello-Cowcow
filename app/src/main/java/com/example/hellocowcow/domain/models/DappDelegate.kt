@@ -6,9 +6,8 @@ import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.subjects.PublishSubject
 import io.reactivex.rxjava3.subjects.Subject
 import timber.log.Timber
-import timber.log.Timber.Forest.plant
 
-object DAppDelegate: SignClient.DappDelegate {
+object DAppDelegate : SignClient.DappDelegate {
 
   var selectedSessionTopic: String? = null
     private set
@@ -25,18 +24,15 @@ object DAppDelegate: SignClient.DappDelegate {
   val namespaces =
     mapOf("mvx" to Sign.Model.Namespace.Proposal(chains, methods, events))
 
-
   private val wcEventSubject: Subject<Sign.Model> = PublishSubject.create()
   val wcEventObservable: Observable<Sign.Model> = wcEventSubject.hide()
 
   init {
-    plant(Timber.DebugTree())
     SignClient.setDappDelegate(this)
     Timber.tag("DEBUG").d(SignClient.getListOfActiveSessions().toString())
   }
 
-  override
-  fun onSessionApproved(
+  override fun onSessionApproved(
     approvedSession: Sign.Model.ApprovedSession
   ) {
     selectedSessionTopic = approvedSession.topic
@@ -46,8 +42,7 @@ object DAppDelegate: SignClient.DappDelegate {
       .d("Approved session's topic is: %s", approvedSession.topic)
   }
 
-  override
-  fun onSessionRejected(
+  override fun onSessionRejected(
     rejectedSession: Sign.Model.RejectedSession
   ) {
     wcEventSubject.onNext(rejectedSession)
@@ -55,8 +50,7 @@ object DAppDelegate: SignClient.DappDelegate {
       .d(rejectedSession.reason)
   }
 
-  override
-  fun onSessionUpdate(
+  override fun onSessionUpdate(
     updatedSession: Sign.Model.UpdatedSession
   ) {
     wcEventSubject.onNext(updatedSession)
@@ -72,16 +66,14 @@ object DAppDelegate: SignClient.DappDelegate {
     "onSessionEvent is deprecated. Use onEvent instead. Using both will result in duplicate events.",
     replaceWith = ReplaceWith("onEvent(event)")
   )
-  override
-  fun onSessionEvent(
+  override fun onSessionEvent(
     sessionEvent: Sign.Model.SessionEvent
   ) {
     wcEventSubject.onNext(sessionEvent)
     Timber.tag("Received_Session_Event").d(sessionEvent.toString())
   }
 
-  override
-  fun onSessionDelete(
+  override fun onSessionDelete(
     deletedSession: Sign.Model.DeletedSession
   ) {
     deselectAccountDetails()
@@ -89,38 +81,33 @@ object DAppDelegate: SignClient.DappDelegate {
     Timber.tag("Session_Deleted").d(deletedSession.toString())
   }
 
-  override
-  fun onSessionRequestResponse(
+  override fun onSessionRequestResponse(
     response: Sign.Model.SessionRequestResponse
   ) {
     wcEventSubject.onNext(response)
     Timber.tag("Session_Request_Resp").d(response.toString())
   }
 
-  override
-  fun onConnectionStateChange(
+  override fun onConnectionStateChange(
     state: Sign.Model.ConnectionState
   ) {
     wcEventSubject.onNext(state)
     Timber.tag("Connection_State").d(state.toString())
   }
 
-  override
-  fun onError(
+  override fun onError(
     error: Sign.Model.Error
   ) {
     wcEventSubject.onNext(error)
     Timber.tag("Error_In_SignClient_SDK").e(error.toString())
   }
 
-  override
-  fun onProposalExpired(proposal: Sign.Model.ExpiredProposal) {
+  override fun onProposalExpired(proposal: Sign.Model.ExpiredProposal) {
     wcEventSubject.onNext(proposal)
     Timber.tag("Proposal_Expired").w(proposal.toString())
   }
 
-  override
-  fun onRequestExpired(request: Sign.Model.ExpiredRequest) {
+  override fun onRequestExpired(request: Sign.Model.ExpiredRequest) {
     wcEventSubject.onNext(request)
     Timber.tag("Request_Expired").w(request.toString())
   }

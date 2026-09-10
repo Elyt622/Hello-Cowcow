@@ -1,6 +1,7 @@
 package com.example.hellocowcow.app.module.main.app
 
 import android.app.Application
+import android.content.pm.ApplicationInfo
 import com.example.hellocowcow.R
 import com.reown.android.Core
 import com.reown.android.CoreClient
@@ -9,15 +10,16 @@ import com.reown.sign.client.Sign
 import com.reown.sign.client.SignClient
 import dagger.hilt.android.HiltAndroidApp
 import timber.log.Timber
-import timber.log.Timber.Forest.plant
-import timber.log.Timber.Forest.tag
 
 @HiltAndroidApp
 class App : Application() {
 
   override fun onCreate() {
     super.onCreate()
-    plant(Timber.DebugTree())
+
+    if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+      Timber.plant(Timber.DebugTree())
+    }
 
     val projectId = resources.getString(R.string.wallet_connect_id)
     val relayUrl = "relay.walletconnect.com"
@@ -36,13 +38,13 @@ class App : Application() {
       application = this,
       metaData = appMetaData
     ) { error ->
-      tag("CoreClient_Init_Error")
+      Timber.tag("CoreClient_Init_Error")
         .e(error.throwable.stackTraceToString())
     }
     val init = Sign.Params.Init(core = CoreClient)
 
     SignClient.initialize(init) { error ->
-      tag("SignClient_Init_Error")
+      Timber.tag("SignClient_Init_Error")
         .e(error.toString())
     }
   }
