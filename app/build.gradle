@@ -89,9 +89,11 @@ dependencies {
   implementation 'androidx.compose.material:material-icons-extended'
   implementation 'androidx.compose.runtime:runtime-rxjava3'
 
-  // WalletConnect
-  implementation 'com.reown:sign:1.0.0'
-  implementation 'com.reown:android-core:1.0.0'
+  // WalletConnect / Reown
+  def reownBom = platform('com.reown:android-bom:1.6.16')
+  implementation reownBom
+  implementation 'com.reown:android-core'
+  implementation 'com.reown:sign'
 
   // SplashScreen
   implementation "androidx.core:core-splashscreen:1.0.1"
