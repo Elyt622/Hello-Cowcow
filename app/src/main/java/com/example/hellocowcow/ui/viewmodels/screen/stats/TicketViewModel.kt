@@ -1,6 +1,7 @@
 package com.example.hellocowcow.ui.viewmodels.screen.stats
 
 import com.example.hellocowcow.app.module.BaseViewModel
+import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.domain.models.TicketCollection
 import com.example.hellocowcow.domain.repositories.NftRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,21 +32,19 @@ class TicketViewModel @Inject constructor(
 
   private fun getTicketCollectionStats() =
     Observable.zip(
-      nftRepository.getStatsCollection(
-        "TICKET-231cd2"
-      ).map { it.pageProps!! },
+      nftRepository.getStatsCollection(CowCowConfig.TICKET_COLLECTION_ID),
       nftRepository.getTicketsUsedCount().toObservable()
     ) { stats, ticketUsed ->
       TicketCollection(
         holdersCount = stats.holdersCount,
-        listedCount = stats.listedNFTs,
-        floorPrice = stats.fallBackFloor,
-        athEgldPrice = stats.profileFallback?.statistics?.tradeData?.athEgldPrice,
-        totalTrades = stats.profileFallback?.statistics?.tradeData?.totalTrades,
-        followAccountsCount = stats.profileFallback?.statistics?.other?.followCount,
-        dayEgldVolume = stats.profileFallback?.statistics?.tradeData?.dayEgldVolume,
-        weekEgldVolume = stats.profileFallback?.statistics?.tradeData?.weekEgldVolume,
-        totalEgldVolume = stats.profileFallback?.statistics?.tradeData?.totalEgldVolume,
+        listedCount = stats.listedCount,
+        floorPrice = stats.floorPrice,
+        athEgldPrice = stats.allTimeHighPrice,
+        totalTrades = stats.totalTrades,
+        followAccountsCount = stats.followCount,
+        dayEgldVolume = stats.dayVolume,
+        weekEgldVolume = stats.weekVolume,
+        totalEgldVolume = stats.totalVolume,
         ticketsUsed = ticketUsed
       )
     }.subscribeBy(
