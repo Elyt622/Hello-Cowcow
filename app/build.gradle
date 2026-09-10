@@ -6,16 +6,16 @@ plugins {
 }
 
 android {
-  namespace 'com.example.hellocowcow'
-  compileSdk 37
+  namespace = 'com.example.hellocowcow'
+  compileSdk = 37
 
   defaultConfig {
-    applicationId "com.example.hellocowcow"
-    minSdk 24
-    targetSdk 36
-    versionCode 1
-    versionName "1.0"
-    multiDexEnabled true
+    applicationId = "com.example.hellocowcow"
+    minSdk = 24
+    targetSdk = 36
+    versionCode = 1
+    versionName = "1.0"
+    multiDexEnabled = true
 
     Properties properties = new Properties()
     def localPropertiesFile = project.rootProject.file('local.properties')
@@ -24,15 +24,15 @@ android {
     }
     resValue "string", "wallet_connect_id", properties.getProperty("wallet.connect.id", "")
 
-    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables {
-      useSupportLibrary true
+      useSupportLibrary = true
     }
   }
 
   buildTypes {
     release {
-      minifyEnabled false
+      minifyEnabled = false
       proguardFiles getDefaultProguardFile(
           'proguard-android-optimize.txt'
       ), 'proguard-rules.pro'
@@ -40,12 +40,13 @@ android {
   }
 
   compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
   }
 
   buildFeatures {
-    compose true
+    compose = true
+    resValues = true
   }
 }
 
