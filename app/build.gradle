@@ -18,10 +18,11 @@ android {
     multiDexEnabled true
 
     Properties properties = new Properties()
-    properties.load(project.rootProject.file('local.properties').newDataInputStream())
-    defaultConfig {
-      resValue "string", "wallet_connect_id", properties.getProperty("wallet.connect.id", "")
+    def localPropertiesFile = project.rootProject.file('local.properties')
+    if (localPropertiesFile.exists()) {
+      localPropertiesFile.withInputStream { properties.load(it) }
     }
+    resValue "string", "wallet_connect_id", properties.getProperty("wallet.connect.id", "")
 
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables {
@@ -34,19 +35,23 @@ android {
       minifyEnabled false
       proguardFiles getDefaultProguardFile(
           'proguard-android-optimize.txt'
-      ),'proguard-rules.pro'
+      ), 'proguard-rules.pro'
     }
   }
+
   compileOptions {
     sourceCompatibility JavaVersion.VERSION_18
     targetCompatibility JavaVersion.VERSION_18
   }
+
   kotlinOptions {
     jvmTarget = '18'
   }
+
   buildFeatures {
     compose true
   }
+
   composeOptions {
     kotlinCompilerExtensionVersion '1.5.0'
   }
@@ -102,7 +107,7 @@ dependencies {
   implementation "io.reactivex.rxjava3:rxandroid:3.0.2"
   implementation "io.reactivex.rxjava3:rxkotlin:3.0.1"
 
-  //Retrofit
+  // Retrofit
   implementation "com.squareup.retrofit2:retrofit:$retrofit_version"
   implementation "com.squareup.retrofit2:converter-gson:$retrofit_version"
   implementation "com.squareup.retrofit2:adapter-rxjava3:$retrofit_version"
