@@ -37,4 +37,19 @@ jobs:
         run: ./gradlew testDebugUnitTest --stacktrace
 
       - name: Android lint
-        run: ./gradlew lintDebug --stacktrace
+        shell: bash
+        run: |
+          set +e
+          ./gradlew lintDebug --stacktrace
+          status=$?
+
+          if [ "$status" -ne 0 ]; then
+            report="app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt"
+            if [ -f "$report" ]; then
+              echo "::group::Android Lint report"
+              cat "$report"
+              echo "::endgroup::"
+            fi
+          fi
+
+          exit "$status"
