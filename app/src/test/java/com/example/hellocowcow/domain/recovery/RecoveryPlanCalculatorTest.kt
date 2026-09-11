@@ -7,38 +7,54 @@ import org.junit.Test
 class RecoveryPlanCalculatorTest {
 
   @Test
-  fun `missing amount is rewards minus wallet balance`() {
+  fun `contract balance reduces the temporary top up needed for claim`() {
     val snapshot = RecoveryPlanCalculator.create(
       claimableRewards = BigDecimal("1000"),
       walletMooveBalance = BigDecimal("250"),
-      contractMooveBalance = BigDecimal("50000")
+      contractMooveBalance = BigDecimal("600")
     )
 
-    assertEquals(0, snapshot.amountToAcquire.compareTo(BigDecimal("750")))
-    assertEquals(0, snapshot.recommendedTopUp.compareTo(BigDecimal("1000")))
+    assertEquals(0, snapshot.claimLiquidityGap.compareTo(BigDecimal("400")))
+    assertEquals(0, snapshot.recommendedTopUp.compareTo(BigDecimal("400")))
+    assertEquals(0, snapshot.amountToAcquire.compareTo(BigDecimal("150")))
   }
 
   @Test
-  fun `nothing must be acquired when wallet already covers rewards`() {
+  fun `nothing must be bought when wallet covers the contract liquidity gap`() {
     val snapshot = RecoveryPlanCalculator.create(
       claimableRewards = BigDecimal("1000"),
-      walletMooveBalance = BigDecimal("1200"),
-      contractMooveBalance = BigDecimal.ZERO
+      walletMooveBalance = BigDecimal("500"),
+      contractMooveBalance = BigDecimal("600")
     )
 
+    assertEquals(0, snapshot.claimLiquidityGap.compareTo(BigDecimal("400")))
     assertEquals(0, snapshot.amountToAcquire.compareTo(BigDecimal.ZERO))
-    assertEquals(0, snapshot.recommendedTopUp.compareTo(BigDecimal("1000")))
+    assertEquals(0, snapshot.recommendedTopUp.compareTo(BigDecimal("400")))
   }
 
   @Test
-  fun `contract balance never reduces the caller top up recommendation`() {
+  fun `no top up is needed when contract already covers the claim`() {
     val snapshot = RecoveryPlanCalculator.create(
       claimableRewards = BigDecimal("1000"),
       walletMooveBalance = BigDecimal.ZERO,
-      contractMooveBalance = BigDecimal("999999999")
+      contractMooveBalance = BigDecimal("1200")
     )
 
-    assertEquals(0, snapshot.amountToAcquire.compareTo(BigDecimal("1000")))
+    assertEquals(0, snapshot.claimLiquidityGap.compareTo(BigDecimal.ZERO))
+    assertEquals(0, snapshot.amountToAcquire.compareTo(BigDecimal.ZERO))
+    assertEquals(0, snapshot.recommendedTopUp.compareTo(BigDecimal.ZERO))
+  }
+
+  @Test
+  fun `empty contract falls back to full reward liquidity`() {
+    val snapshot = RecoveryPlanCalculator.create(
+      claimableRewards = BigDecimal("1000"),
+      walletMooveBalance = BigDecimal("100"),
+      contractMooveBalance = BigDecimal.ZERO
+    )
+
+    assertEquals(0, snapshot.claimLiquidityGap.compareTo(BigDecimal("1000")))
+    assertEquals(0, snapshot.amountToAcquire.compareTo(BigDecimal("900")))
     assertEquals(0, snapshot.recommendedTopUp.compareTo(BigDecimal("1000")))
   }
 }
