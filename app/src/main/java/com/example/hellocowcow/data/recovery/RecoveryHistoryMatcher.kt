@@ -3,6 +3,7 @@ package com.example.hellocowcow.data.recovery
 import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.data.retrofit.mvxApi.response.Transactions
 import com.example.hellocowcow.domain.models.RecoveryUnbondBatch
+import com.example.hellocowcow.domain.recovery.RecoveryEvidence
 
 object RecoveryHistoryMatcher {
 
@@ -41,7 +42,8 @@ object RecoveryHistoryMatcher {
         unstakeTxHash = txHash,
         cowNonces = pendingNonces,
         unstakedAtEpochSeconds = timestamp,
-        claimableAtEpochSeconds = timestamp + CowCowConfig.UNBONDING_PERIOD_SECONDS
+        claimableAtEpochSeconds = timestamp +
+            RecoveryEvidence.OBSERVED_SUCCESSFUL_FINAL_CLAIM_DELAY_SECONDS
       )
     }.sortedBy { it.unstakedAtEpochSeconds }
   }
