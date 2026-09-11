@@ -3,6 +3,8 @@ package com.example.hellocowcow.domain.transactions
 import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.domain.models.DomainAccount
 import com.google.gson.Gson
+import java.nio.charset.StandardCharsets
+import java.util.Base64
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -12,7 +14,7 @@ import org.junit.Test
 class ClaimTransactionFactoryTest {
 
   @Test
-  fun `unguarded claim omits guardian fields`() {
+  fun `unguarded claim matches verified CowCow claimRewards call`() {
     val transaction = ClaimTransactionFactory.create(
       DomainAccount(
         address = "erd1sender",
@@ -22,7 +24,15 @@ class ClaimTransactionFactoryTest {
     )
 
     assertEquals(42, transaction.nonce)
+    assertEquals("0", transaction.value)
+    assertEquals(CowCowConfig.REWARDS_CONTRACT, transaction.receiver)
     assertEquals(CowCowConfig.CLAIM_REWARDS_GAS_LIMIT, transaction.gasLimit)
+    assertEquals(CowCowConfig.MIN_GAS_PRICE, transaction.gasPrice)
+    assertEquals(CowCowConfig.MAINNET_CHAIN_ID, transaction.chainID)
+    assertEquals(
+      "claimRewards",
+      String(Base64.getDecoder().decode(transaction.data), StandardCharsets.UTF_8)
+    )
     assertEquals(1, transaction.version)
     assertNull(transaction.options)
     assertNull(transaction.guardian)
