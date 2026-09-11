@@ -78,13 +78,13 @@ fun ProfileScreen(
         onClaim = { viewModel.requestClaimRewards(account, topic) }
       )
 
-      when (transactionState) {
+      when (val currentTransactionState = transactionState) {
         is ProfileViewModel.UiStateTx.Send -> {
-          CustomAlert(tx = transactionState.tx)
+          CustomAlert(tx = currentTransactionState.tx)
         }
 
         is ProfileViewModel.UiStateTx.Error -> {
-          InlineError(transactionState.error)
+          InlineError(currentTransactionState.error)
         }
 
         else -> Unit
