@@ -40,16 +40,23 @@ class TransactionCostRepositoryImpl @Inject constructor(
         ?: error("MultiversX did not return transaction gas units")
     }.getOrNull()
 
-    val gasUnits = simulatedGas ?: transaction.gasLimit
-    require(gasUnits > 0) { "Transaction gas estimate must be positive" }
+    val expectedGasUnits = simulatedGas ?: transaction.gasLimit
+    require(expectedGasUnits > 0) { "Transaction gas estimate must be positive" }
+    require(transaction.gasLimit > 0) { "Transaction gas limit must be positive" }
 
     return TransactionFeeEstimate(
       feeEgld = calculateFeeEgld(
         transaction = transaction,
-        gasUnits = gasUnits,
+        gasUnits = expectedGasUnits,
         config = config
       ),
-      gasUnits = gasUnits,
+      maxFeeEgld = calculateFeeEgld(
+        transaction = transaction,
+        gasUnits = transaction.gasLimit,
+        config = config
+      ),
+      gasUnits = expectedGasUnits,
+      gasLimit = transaction.gasLimit,
       simulated = simulatedGas != null
     )
   }
