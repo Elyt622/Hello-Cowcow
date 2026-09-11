@@ -15,14 +15,9 @@ object RecoveryPlanCalculator {
     require(walletMooveBalance >= BigDecimal.ZERO) { "Wallet MOOVE balance cannot be negative" }
     require(contractMooveBalance >= BigDecimal.ZERO) { "Contract MOOVE balance cannot be negative" }
 
-    val normalizedNonces = stakedCowNonces.map { nonce ->
-      nonce.lowercase().also {
-        require(it.matches(Regex("[0-9a-f]{4}"))) {
-          "CowCow nonce must be a four-character hexadecimal value"
-        }
-        require(it != "0000") { "CowCow nonce cannot be zero" }
-      }
-    }.distinct()
+    val normalizedNonces = stakedCowNonces
+      .map(CowCowNonceCodec::normalize)
+      .distinct()
 
     // Claim-first recovery only needs enough temporary liquidity for the contract
     // to honor the pending reward payment. Existing contract MOOVE contributes to
