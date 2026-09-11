@@ -23,30 +23,38 @@ object MooveRewardDecoder {
       "Rewards contract returned empty data"
     }
 
+    // This is the extraction path used by the original working CowCow app.
+    // Prefer it for non-zero rewards because getAllDataForUser contains several
+    // nested integers near the end of the payload and a generic suffix decoder
+    // can otherwise lock onto the wrong small field.
+    decodeLegacyRewardAmount(returnData)?.let { amount ->
+      return amount.toBigDecimal(TOKEN_DECIMALS)
+    }
+
+    // Keep structural decoding as a zero-safe fallback for payloads where the
+    // legacy regex has no amount token (notably after rewards have been claimed).
     decodeNestedAmountAtEnd(returnData)?.let { amount ->
       return amount.toBigDecimal(TOKEN_DECIMALS)
     }
 
-    // Compatibility fallback for the legacy Android decoder. Older app versions
-    // searched the Base64 text itself for the tail of the nested BigUint field.
+    throw IllegalArgumentException(
+      "Unable to locate the MOOVE reward amount in contract data"
+    )
+  }
+
+  private fun decodeLegacyRewardAmount(returnData: String): BigInteger? {
     val encodedAmount = encodedAmountPattern
       .find(returnData.takeLast(LEGACY_SEARCH_WINDOW))
       ?.value
-      ?: throw IllegalArgumentException(
-        "Unable to locate the MOOVE reward amount in contract data"
-      )
+      ?: return null
 
     val decoded = Base64.decodeBase64(encodedAmount)
-    require(decoded.size > 1) {
-      "MOOVE reward payload is too short"
-    }
+    if (decoded.size <= 1) return null
 
-    val amount = BigInteger(
+    return BigInteger(
       1,
       decoded.copyOfRange(1, decoded.size)
     )
-
-    return amount.toBigDecimal(TOKEN_DECIMALS)
   }
 
   private fun decodeNestedAmountAtEnd(returnData: String): BigInteger? {
@@ -61,8 +69,6 @@ object MooveRewardDecoder {
       bytes.size - NESTED_LENGTH_BYTES
     )
 
-    // Prefer the longest valid suffix. This prevents a non-zero amount that happens
-    // to end in zero bytes from being mistaken for the nested zero representation.
     for (payloadLength in maxLength downTo 0) {
       val prefixStart = bytes.size - NESTED_LENGTH_BYTES - payloadLength
       val declaredLength = readUnsignedInt(bytes, prefixStart)
