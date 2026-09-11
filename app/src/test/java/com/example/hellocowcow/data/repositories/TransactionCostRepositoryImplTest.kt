@@ -13,6 +13,7 @@ import java.util.Base64
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -48,6 +49,31 @@ class TransactionCostRepositoryImplTest {
     assertEquals(300_000L, estimate.gasUnits)
     assertEquals(30_000_000L, estimate.gasLimit)
     assertTrue(estimate.simulated)
+  }
+
+  @Test
+  fun `rejects simulation above the gas limit that would actually be signed`() = runTest {
+    val repository = TransactionCostRepositoryImpl(
+      FakeGatewayApi(
+        gasUnits = 30_000_001L,
+        modifier = BigDecimal("0.01")
+      )
+    )
+    val transaction = MvxTransaction(
+      nonce = 7,
+      value = "0",
+      receiver = "erd1contract",
+      sender = "erd1sender",
+      gasPrice = 1_000_000_000L,
+      gasLimit = 30_000_000L,
+      data = Base64.getEncoder().encodeToString("claimRewards".toByteArray()),
+      chainID = "1",
+      version = 1
+    )
+
+    assertThrows(IllegalStateException::class.java) {
+      runTest { repository.estimateFee(transaction) }
+    }
   }
 
   @Test
