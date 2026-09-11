@@ -11,16 +11,19 @@ import retrofit2.http.Path
 
 interface ProxyXoxnoApi {
 
-  @GET("/nfts/{identifier}")
+  @GET("/nft/{identifier}")
   fun getNft(
     @Path("identifier") identifier: String
   ): Single<Nft>
 
-  @GET("/nfts/{identifier}")
+  @GET("/nft/{identifier}")
   suspend fun getNftDetail(
     @Path("identifier") identifier: String
   ): Nft
 
+  // Legacy endpoints kept only for compatibility while their DTOs are migrated.
+  // Do not call these from 2026 startup paths; current XOXNO uses /user, /nft/query
+  // and /activity/query instead of the old /accounts and encoded proxy routes.
   @GET("/accounts/{address}/listings")
   fun getCowsListing(
     @Path("address") address: String
