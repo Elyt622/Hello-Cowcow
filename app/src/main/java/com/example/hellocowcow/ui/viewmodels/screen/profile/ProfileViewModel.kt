@@ -5,16 +5,21 @@ import androidx.lifecycle.viewModelScope
 import com.example.hellocowcow.core.wallet.MvxSignTransactionResultParser
 import com.example.hellocowcow.core.wallet.WalletClient
 import com.example.hellocowcow.core.wallet.WalletEvent
+import com.example.hellocowcow.data.rewards.MooveRewardDecoder
 import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.domain.models.DomainTransaction
 import com.example.hellocowcow.domain.models.MvxTransaction
-import com.example.hellocowcow.domain.repositories.RecoveryRepository
+import com.example.hellocowcow.domain.repositories.RewardsRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
 import com.example.hellocowcow.domain.transactions.ClaimTransactionFactory
 import com.example.hellocowcow.domain.transactions.TransactionTracker
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.math.RoundingMode
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -22,7 +27,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-  private val recoveryRepository: RecoveryRepository,
+  private val rewardsRepository: RewardsRepository,
   private val transactionRepository: TransactionRepository,
   private val transactionTracker: TransactionTracker,
   private val walletClient: WalletClient
@@ -67,11 +72,11 @@ class ProfileViewModel @Inject constructor(
 
     viewModelScope.launch {
       runCatching {
-        recoveryRepository.getSnapshot(address).claimableRewards
-      }.onSuccess { amount ->
-        _uiState.value = UiState.Success(
-          amount.stripTrailingZeros().toPlainString()
+        MooveRewardDecoder.decodeClaimableAmount(
+          rewardsRepository.getUserData(address)
         )
+      }.onSuccess { amount ->
+        _uiState.value = UiState.Success(formatMoove(amount))
       }.onFailure { error ->
         _uiState.value = UiState.Error(
           error.message ?: "Unable to load MOOVE rewards"
@@ -218,5 +223,17 @@ class ProfileViewModel @Inject constructor(
   private fun clearPendingClaim() {
     pendingClaimTransaction = null
     pendingClaimRequestId = null
+  }
+
+  private fun formatMoove(amount: java.math.BigDecimal): String {
+    val formatter = DecimalFormat(
+      "0.##",
+      DecimalFormatSymbols.getInstance(Locale.getDefault())
+    ).apply {
+      roundingMode = RoundingMode.HALF_UP
+      isGroupingUsed = false
+      maximumFractionDigits = 2
+    }
+    return formatter.format(amount)
   }
 }
