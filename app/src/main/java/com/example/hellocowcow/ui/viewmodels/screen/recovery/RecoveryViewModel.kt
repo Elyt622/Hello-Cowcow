@@ -14,6 +14,7 @@ import com.example.hellocowcow.domain.recovery.RecoveryCostEstimate
 import com.example.hellocowcow.domain.recovery.RecoveryCostEstimateInput
 import com.example.hellocowcow.domain.recovery.RecoveryDexQuote
 import com.example.hellocowcow.domain.recovery.RecoveryNetworkFeeEstimate
+import com.example.hellocowcow.domain.repositories.AccountRepository
 import com.example.hellocowcow.domain.repositories.RecoveryDexQuoteRepository
 import com.example.hellocowcow.domain.repositories.RecoveryRepository
 import com.example.hellocowcow.domain.repositories.TransactionCostRepository
@@ -32,6 +33,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class RecoveryViewModel @Inject constructor(
+  private val accountRepository: AccountRepository,
   private val recoveryRepository: RecoveryRepository,
   private val recoveryDexQuoteRepository: RecoveryDexQuoteRepository,
   private val transactionCostRepository: TransactionCostRepository,
@@ -188,51 +190,69 @@ class RecoveryViewModel @Inject constructor(
     amountMoove: BigDecimal
   ) {
     if (pendingTopUpTransaction != null) return
-
-    val snapshot = (uiState.value as? UiState.Success)?.snapshot
-    if (snapshot == null) {
-      _transactionState.value = TransactionUiState.Error("Recovery diagnostic is not ready")
-      return
-    }
-
     if (amountMoove <= BigDecimal.ZERO) {
       _transactionState.value = TransactionUiState.Error("No MOOVE top-up is needed before claiming")
       return
     }
 
-    if (snapshot.walletMooveBalance < amountMoove) {
-      _transactionState.value = TransactionUiState.Error(
-        "Your wallet does not hold enough MOOVE for this top-up"
+    viewModelScope.launch {
+      val refreshed = runCatching {
+        val latestAccount = accountRepository.getAccount(account.address)
+        val latestSnapshot = recoveryRepository.getSnapshot(account.address)
+        latestAccount to latestSnapshot
+      }.getOrElse { error ->
+        _transactionState.value = TransactionUiState.Error(
+          error.message ?: "Unable to refresh Recovery balances before signing"
+        )
+        return@launch
+      }
+
+      val (latestAccount, latestSnapshot) = refreshed
+      currentAccount = latestAccount
+      _uiState.value = UiState.Success(latestSnapshot)
+      loadCostEstimate(latestSnapshot, latestAccount)
+
+      if (latestSnapshot.recommendedTopUp <= BigDecimal.ZERO) {
+        _transactionState.value = TransactionUiState.Error(
+          "The contract now has enough MOOVE for your claim. No top-up is needed."
+        )
+        return@launch
+      }
+
+      if (amountMoove.compareTo(latestSnapshot.recommendedTopUp) != 0) {
+        _transactionState.value = TransactionUiState.Error(
+          "Contract liquidity changed since the estimate. Review the refreshed amount before signing."
+        )
+        return@launch
+      }
+
+      if (latestSnapshot.walletMooveBalance < amountMoove) {
+        _transactionState.value = TransactionUiState.Error(
+          "Your wallet does not hold enough MOOVE for the refreshed top-up amount"
+        )
+        return@launch
+      }
+
+      val transaction = runCatching {
+        RecoveryTopUpTransactionFactory.create(latestAccount, amountMoove)
+      }.getOrElse { error ->
+        _transactionState.value = TransactionUiState.Error(
+          error.message ?: "Unable to build the recovery top-up transaction"
+        )
+        return@launch
+      }
+
+      pendingTopUpTransaction = transaction
+      pendingTopUpRequestId = null
+      _transactionState.value = TransactionUiState.AwaitingSignature
+
+      walletClient.requestTransactionSignature(
+        sessionTopic = topic,
+        paramsJson = gson.toJson(mapOf("transaction" to transaction)),
+        onSent = { requestId -> pendingTopUpRequestId = requestId },
+        onError = ::failTopUp
       )
-      return
     }
-
-    if (amountMoove.compareTo(snapshot.recommendedTopUp) != 0) {
-      _transactionState.value = TransactionUiState.Error(
-        "Top-up amount changed. Refresh the recovery diagnostic before signing"
-      )
-      return
-    }
-
-    val transaction = runCatching {
-      RecoveryTopUpTransactionFactory.create(account, amountMoove)
-    }.getOrElse { error ->
-      _transactionState.value = TransactionUiState.Error(
-        error.message ?: "Unable to build the recovery top-up transaction"
-      )
-      return
-    }
-
-    pendingTopUpTransaction = transaction
-    pendingTopUpRequestId = null
-    _transactionState.value = TransactionUiState.AwaitingSignature
-
-    walletClient.requestTransactionSignature(
-      sessionTopic = topic,
-      paramsJson = gson.toJson(mapOf("transaction" to transaction)),
-      onSent = { requestId -> pendingTopUpRequestId = requestId },
-      onError = ::failTopUp
-    )
   }
 
   fun clearTransactionError() {
@@ -316,8 +336,9 @@ class RecoveryViewModel @Inject constructor(
     when (val result = transactionTracker.awaitFinalStatus(txHash)) {
       is TransactionTracker.Result.Confirmed -> {
         _transactionState.value = TransactionUiState.Confirmed(transaction)
-        currentAccount?.let { account ->
-          load(account.copy(nonce = account.nonce + 1))
+        currentAccount?.address?.let { address ->
+          runCatching { accountRepository.getAccount(address) }
+            .onSuccess(::load)
         }
       }
 
