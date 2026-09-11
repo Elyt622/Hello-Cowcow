@@ -16,6 +16,7 @@ import com.example.hellocowcow.domain.transactions.TransactionTracker
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.math.BigDecimal
 import java.math.RoundingMode
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
@@ -225,7 +226,11 @@ class ProfileViewModel @Inject constructor(
     pendingClaimRequestId = null
   }
 
-  private fun formatMoove(amount: java.math.BigDecimal): String {
+  private fun formatMoove(amount: BigDecimal): String {
+    if (amount > BigDecimal.ZERO && amount < BigDecimal("0.01")) {
+      return "< 0,01"
+    }
+
     val formatter = DecimalFormat(
       "0.##",
       DecimalFormatSymbols.getInstance(Locale.getDefault())
