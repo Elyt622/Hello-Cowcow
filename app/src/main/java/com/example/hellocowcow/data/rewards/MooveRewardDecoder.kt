@@ -3,12 +3,10 @@ package com.example.hellocowcow.data.rewards
 import io.ipfs.multibase.binary.Base64
 import java.math.BigDecimal
 import java.math.BigInteger
-import java.math.RoundingMode
 
 object MooveRewardDecoder {
 
   private const val TOKEN_DECIMALS = 18
-  private const val DISPLAY_SCALE = 4
   private const val LEGACY_SEARCH_WINDOW = 35
 
   private val encodedAmountPattern = Regex(
@@ -36,14 +34,13 @@ object MooveRewardDecoder {
     }
 
     // The legacy CowCow contract response prefixes the integer with its encoded length.
-    // Preserve that wire format while parsing the amount directly as an unsigned integer.
+    // Keep all 18 token decimals here. Rounding belongs to presentation only: Recovery
+    // uses this value to determine the exact MOOVE liquidity/top-up required on-chain.
     val amount = BigInteger(
       1,
       decoded.copyOfRange(1, decoded.size)
     )
 
-    return amount
-      .toBigDecimal(TOKEN_DECIMALS)
-      .setScale(DISPLAY_SCALE, RoundingMode.HALF_UP)
+    return amount.toBigDecimal(TOKEN_DECIMALS)
   }
 }
