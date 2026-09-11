@@ -1,7 +1,6 @@
 package com.example.hellocowcow.core.wallet
 
-import com.example.hellocowcow.data.retrofit.mvxApi.request.Transaction
-import com.example.hellocowcow.data.transaction.withWalletResult
+import com.example.hellocowcow.domain.models.MvxTransaction
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -49,11 +48,13 @@ class MvxSignTransactionResultParserTest {
       "{\"signature\":\"$signature\"}"
     ).getOrThrow()
 
-    val signed = Transaction(
-      nonce = 1,
-      receiver = "erd1receiver",
-      sender = "erd1sender"
-    ).withWalletResult(parsed)
+    val signed = parsed.applyTo(
+      MvxTransaction(
+        nonce = 1,
+        receiver = "erd1receiver",
+        sender = "erd1sender"
+      )
+    )
 
     assertNull(signed.guardianSignature)
     val json = Gson().toJson(signed)

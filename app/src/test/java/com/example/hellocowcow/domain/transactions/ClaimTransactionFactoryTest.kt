@@ -1,4 +1,4 @@
-package com.example.hellocowcow.data.transaction
+package com.example.hellocowcow.domain.transactions
 
 import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.domain.models.DomainAccount

@@ -5,14 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.hellocowcow.core.wallet.MvxSignTransactionResultParser
 import com.example.hellocowcow.core.wallet.WalletClient
 import com.example.hellocowcow.core.wallet.WalletEvent
-import com.example.hellocowcow.data.retrofit.mvxApi.request.Transaction
 import com.example.hellocowcow.data.rewards.MooveRewardDecoder
-import com.example.hellocowcow.data.transaction.ClaimTransactionFactory
-import com.example.hellocowcow.data.transaction.withWalletResult
 import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.domain.models.DomainTransaction
+import com.example.hellocowcow.domain.models.MvxTransaction
 import com.example.hellocowcow.domain.repositories.RewardsRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
+import com.example.hellocowcow.domain.transactions.ClaimTransactionFactory
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,7 +27,7 @@ class ProfileViewModel @Inject constructor(
   private val walletClient: WalletClient
 ) : ViewModel() {
 
-  private var pendingClaimTransaction: Transaction? = null
+  private var pendingClaimTransaction: MvxTransaction? = null
   private var pendingClaimRequestId: Long? = null
 
   private val gson: Gson = GsonBuilder().disableHtmlEscaping().create()
@@ -140,7 +139,7 @@ class ProfileViewModel @Inject constructor(
 
     MvxSignTransactionResultParser.parse(event.payload)
       .onSuccess { walletResult ->
-        broadcast(transaction.withWalletResult(walletResult))
+        broadcast(walletResult.applyTo(transaction))
       }
       .onFailure { error ->
         failClaim(error.message ?: "Invalid response from xPortal")
@@ -153,7 +152,7 @@ class ProfileViewModel @Inject constructor(
         (expectedRequestId == null || expectedRequestId == requestId)
   }
 
-  private fun broadcast(transaction: Transaction) {
+  private fun broadcast(transaction: MvxTransaction) {
     if (transaction.signature.isNullOrBlank()) {
       failClaim("xPortal did not return a transaction signature")
       return

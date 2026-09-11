@@ -1,14 +1,14 @@
-package com.example.hellocowcow.data.transaction
+package com.example.hellocowcow.domain.transactions
 
 import com.example.hellocowcow.core.config.CowCowConfig
-import com.example.hellocowcow.data.retrofit.mvxApi.request.Transaction
 import com.example.hellocowcow.domain.models.DomainAccount
+import com.example.hellocowcow.domain.models.MvxTransaction
 
 object ClaimTransactionFactory {
 
   private const val GUARDED_TRANSACTION_OPTION = 2
 
-  fun create(account: DomainAccount): Transaction {
+  fun create(account: DomainAccount): MvxTransaction {
     val guardian = if (account.isGuarded) {
       require(account.activeGuardianAddress.isNotBlank()) {
         "Guarded account is missing its active guardian address"
@@ -18,7 +18,7 @@ object ClaimTransactionFactory {
       null
     }
 
-    return Transaction(
+    return MvxTransaction(
       nonce = account.nonce,
       value = "0",
       receiver = CowCowConfig.REWARDS_CONTRACT,

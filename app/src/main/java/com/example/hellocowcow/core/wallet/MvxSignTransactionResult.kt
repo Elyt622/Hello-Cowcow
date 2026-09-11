@@ -1,5 +1,6 @@
 package com.example.hellocowcow.core.wallet
 
+import com.example.hellocowcow.domain.models.MvxTransaction
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 
@@ -9,7 +10,15 @@ data class MvxSignTransactionResult(
   val guardianSignature: String? = null,
   val options: Int? = null,
   val version: Int? = null
-)
+) {
+  fun applyTo(transaction: MvxTransaction): MvxTransaction = transaction.copy(
+    signature = signature,
+    guardian = guardian ?: transaction.guardian,
+    guardianSignature = guardianSignature ?: transaction.guardianSignature,
+    options = options ?: transaction.options,
+    version = version ?: transaction.version
+  )
+}
 
 object MvxSignTransactionResultParser {
 
