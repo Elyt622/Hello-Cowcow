@@ -18,10 +18,17 @@ object RecoveryTopUpTransactionFactory {
   ): MvxTransaction {
     require(amountMoove > BigDecimal.ZERO) { "MOOVE top-up amount must be positive" }
 
-    val atomicAmount = amountMoove
-      .movePointRight(CowCowConfig.MOOVE_DECIMALS)
-      .setScale(0, RoundingMode.UNNECESSARY)
-      .toBigIntegerExact()
+    val atomicAmount = try {
+      amountMoove
+        .movePointRight(CowCowConfig.MOOVE_DECIMALS)
+        .setScale(0, RoundingMode.UNNECESSARY)
+        .toBigIntegerExact()
+    } catch (error: ArithmeticException) {
+      throw IllegalArgumentException(
+        "MOOVE amount supports at most ${CowCowConfig.MOOVE_DECIMALS} decimal places",
+        error
+      )
+    }
 
     val tokenHex = CowCowConfig.MOOVE_TOKEN_ID.toHexUtf8()
     val amountHex = atomicAmount.toString(16)
