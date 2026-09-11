@@ -26,24 +26,22 @@ fun StatsScreen() {
   var tabIndex by remember { mutableIntStateOf(0) }
   val tabs = listOf("CowCow", "MOOVE")
 
-  Column(
-    modifier = Modifier.fillMaxSize()
-  ) {
+  Column(modifier = Modifier.fillMaxSize()) {
     Column(
       modifier = Modifier.padding(
-        start = 20.dp,
-        top = 20.dp,
-        end = 20.dp,
-        bottom = 16.dp
+        start = 16.dp,
+        top = 16.dp,
+        end = 16.dp,
+        bottom = 10.dp
       )
     ) {
       Text(
-        text = "Collection intelligence",
+        text = "Collection",
         style = MaterialTheme.typography.headlineLarge
       )
       Text(
-        text = "Market, community and token signals in one place.",
-        style = MaterialTheme.typography.bodyLarge,
+        text = "Market, supply and community signals.",
+        style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
     }
@@ -76,7 +74,6 @@ fun StatsScreen() {
         0 -> CollectionScreen(
           collectionViewModel = hiltViewModel<CollectionViewModel>()
         )
-
         else -> TokenScreen(
           viewModel = hiltViewModel<TokenViewModel>()
         )

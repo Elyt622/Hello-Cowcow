@@ -1,39 +1,32 @@
 package com.example.hellocowcow.ui.composables
 
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.HourglassTop
-import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.hellocowcow.domain.models.DomainTransaction
 
@@ -42,133 +35,134 @@ import com.example.hellocowcow.domain.models.DomainTransaction
 fun CustomAlert(
   tx: DomainTransaction
 ) {
-  val context = LocalContext.current
+  val uriHandler = LocalUriHandler.current
   val openDialog = remember { mutableStateOf(true) }
+  val status = tx.status.ifBlank { "submitted" }
+  val successful = status.equals("success", ignoreCase = true) ||
+      status.equals("executed", ignoreCase = true)
+  val txHash = tx.txHash.orEmpty()
 
-  if (openDialog.value) {
-    BasicAlertDialog(onDismissRequest = {
-      openDialog.value = false
-    }
+  if (!openDialog.value) return
+
+  BasicAlertDialog(
+    onDismissRequest = { openDialog.value = false }
+  ) {
+    Surface(
+      modifier = Modifier.fillMaxWidth(),
+      shape = RoundedCornerShape(20.dp),
+      color = MaterialTheme.colorScheme.surface,
+      tonalElevation = 8.dp
     ) {
-      Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(4.dp)
-            .height(300.dp)
-            .border(
-                BorderStroke(
-                    width = 1.dp,
-                    color = Color.Black
-                )
-            ),
-        color = MaterialTheme.colorScheme.primary,
-        shape = MaterialTheme.shapes.large,
-        tonalElevation = AlertDialogDefaults.TonalElevation
+      Column(
+        modifier = Modifier.padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
       ) {
-        Column(
-          modifier = Modifier
-              .fillMaxWidth()
-              .padding(8.dp),
-          horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.SpaceBetween
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
         ) {
           Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
           ) {
-            Box(
-              modifier = Modifier.weight(1f),
-              contentAlignment = Alignment.Center
+            Surface(
+              shape = RoundedCornerShape(12.dp),
+              color = if (successful) {
+                MaterialTheme.colorScheme.secondaryContainer
+              } else {
+                MaterialTheme.colorScheme.primaryContainer
+              },
+              contentColor = if (successful) {
+                MaterialTheme.colorScheme.onSecondaryContainer
+              } else {
+                MaterialTheme.colorScheme.onPrimaryContainer
+              }
             ) {
+              Icon(
+                imageVector = if (successful) Icons.Filled.CheckCircle else Icons.Filled.HourglassTop,
+                contentDescription = null,
+                modifier = Modifier
+                  .padding(10.dp)
+                  .size(22.dp)
+              )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
               Text(
-                text = "Transaction Details",
+                text = if (successful) "Transaction confirmed" else "Transaction submitted",
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.background
+                fontWeight = FontWeight.SemiBold
+              )
+              Text(
+                text = status.replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
               )
             }
-
-            Icon(
-              imageVector = Icons.Filled.Cancel,
-              contentDescription = "",
-              tint = MaterialTheme.colorScheme.background,
-              modifier = Modifier
-                  .size(24.dp)
-                  .clickable { openDialog.value = false }
-            )
           }
 
-          Text(
-            text = "Transaction ${tx.status}",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.background
-          )
-
-          Row(
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Text(
-              text = "Status: ${tx.status}",
-              style = MaterialTheme.typography.labelMedium,
-              color = MaterialTheme.colorScheme.background
-            )
+          IconButton(onClick = { openDialog.value = false }) {
             Icon(
-              modifier = Modifier.size(12.5.dp),
-              imageVector = Icons.Filled.HourglassTop,
-              contentDescription = "",
-              tint = MaterialTheme.colorScheme.background
+              imageVector = Icons.Filled.Close,
+              contentDescription = "Close"
             )
           }
+        }
 
-          Card(
-            colors = CardDefaults.cardColors(
-              containerColor = MaterialTheme.colorScheme.background,
-              contentColor = MaterialTheme.colorScheme.primary
-            )
+        if (txHash.isNotBlank()) {
+          Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant
           ) {
-            Row(
-              modifier = Modifier.padding(8.dp),
+            Column(
+              modifier = Modifier.padding(14.dp),
+              verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
               Text(
-                text = "Tx Hash: ",
-                style = MaterialTheme.typography.labelMedium
+                text = "Transaction hash",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
               )
               Text(
-                text = tx.txHash?.substring(0..8)
-                    + "..." +
-                    tx.txHash
-                      ?.substring(
-                        tx.txHash!!.length - 8
-                            until
-                            tx.txHash!!.length
-                      ),
-                style = MaterialTheme.typography.labelMedium
+                text = shortHash(txHash),
+                style = MaterialTheme.typography.titleSmall
               )
             }
           }
 
-          TextButton(
-            colors = ButtonDefaults.buttonColors(
-              containerColor = MaterialTheme.colorScheme.primary,
-              contentColor = MaterialTheme.colorScheme.background,
-            ),
+          Button(
             onClick = {
-              val intent = Intent(Intent.ACTION_VIEW)
-              val url =
-                Uri.parse("https://explorer.multiversx.com/transactions/${tx.txHash}")
-              intent.data = url
-              context.startActivity(intent)
+              uriHandler.openUri(
+                "https://explorer.multiversx.com/transactions/$txHash"
+              )
               openDialog.value = false
             },
-            modifier = Modifier.align(Alignment.CenterHorizontally)
+            modifier = Modifier.fillMaxWidth()
           ) {
-            Text(
-              text = "VIEW ON EXPLORER",
-              style = MaterialTheme.typography.bodyMedium
+            Text("View on MultiversX Explorer")
+            Icon(
+              imageVector = Icons.Filled.OpenInNew,
+              contentDescription = null,
+              modifier = Modifier
+                .padding(start = 8.dp)
+                .size(17.dp)
             )
           }
+        } else {
+          Text(
+            text = "The transaction was submitted, but no transaction hash was returned.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
         }
       }
     }
   }
+}
+
+private fun shortHash(hash: String): String = when {
+  hash.length <= 20 -> hash
+  else -> "${hash.take(9)}…${hash.takeLast(8)}"
 }

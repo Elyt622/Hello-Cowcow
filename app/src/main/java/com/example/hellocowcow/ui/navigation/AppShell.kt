@@ -146,7 +146,9 @@ fun AppShell(
 
     if (useNavigationRail) {
       Row(modifier = Modifier.fillMaxSize()) {
-        NavigationRail {
+        NavigationRail(
+          containerColor = MaterialTheme.colorScheme.surface
+        ) {
           topLevelItems.forEach { item ->
             NavigationRailItem(
               selected = currentDestination == item.destination,
@@ -170,9 +172,12 @@ fun AppShell(
       }
     } else {
       Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
           if (currentDestination in topLevelDestinations) {
-            NavigationBar {
+            NavigationBar(
+              containerColor = MaterialTheme.colorScheme.surface
+            ) {
               topLevelItems.forEach { item ->
                 NavigationBarItem(
                   selected = currentDestination == item.destination,

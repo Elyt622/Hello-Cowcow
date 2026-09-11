@@ -1,20 +1,25 @@
 package com.example.hellocowcow.ui.screen.profile.tabs
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,9 +34,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.example.hellocowcow.domain.models.DomainNft
 import com.example.hellocowcow.ui.composables.NftCard
+
+private enum class PortfolioFilter(val label: String) {
+  All("All"),
+  Listed("Listed"),
+  Upgraded("Upgraded")
+}
 
 @Composable
 internal fun PortfolioNftGrid(
@@ -41,31 +53,39 @@ internal fun PortfolioNftGrid(
 ) {
   var query by rememberSaveable { mutableStateOf("") }
   var sortByRank by rememberSaveable { mutableStateOf(false) }
+  var filter by rememberSaveable { mutableStateOf(PortfolioFilter.All) }
   val normalizedQuery = query.trim().lowercase()
-  val visibleNfts = remember(nfts, normalizedQuery, sortByRank) {
-    val filtered = if (normalizedQuery.isBlank()) {
-      nfts
+
+  val visibleNfts = remember(nfts, normalizedQuery, sortByRank, filter) {
+    val filteredByType = when (filter) {
+      PortfolioFilter.All -> nfts
+      PortfolioFilter.Listed -> nfts.filter { it.onSale == true }
+      PortfolioFilter.Upgraded -> nfts.filter { it.hasSecondNFT == true }
+    }
+
+    val filteredByQuery = if (normalizedQuery.isBlank()) {
+      filteredByType
     } else {
-      nfts.filter { nft ->
+      filteredByType.filter { nft ->
         nft.name.orEmpty().lowercase().contains(normalizedQuery) ||
             nft.identifier.orEmpty().lowercase().contains(normalizedQuery)
       }
     }
 
     if (sortByRank) {
-      filtered.sortedWith(
+      filteredByQuery.sortedWith(
         compareBy<DomainNft> { it.metadata?.rarity?.rank ?: Int.MAX_VALUE }
           .thenBy { it.name.orEmpty() }
       )
     } else {
-      filtered
+      filteredByQuery
     }
   }
 
   Column(modifier = Modifier.fillMaxSize()) {
     Column(
       modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp)
+      verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
       Text(
         text = title,
@@ -77,7 +97,7 @@ internal fun PortfolioNftGrid(
         onValueChange = { query = it },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
-        label = { Text("Find a CowCow") },
+        label = { Text("Find by name or identifier") },
         leadingIcon = {
           Icon(
             imageVector = Icons.Filled.Search,
@@ -97,19 +117,19 @@ internal fun PortfolioNftGrid(
       )
 
       Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+          .fillMaxWidth()
+          .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Text(
-          text = if (normalizedQuery.isBlank()) {
-            "${visibleNfts.size} visible"
-          } else {
-            "${visibleNfts.size} result${if (visibleNfts.size == 1) "" else "s"}"
-          },
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        PortfolioFilter.entries.forEach { option ->
+          FilterChip(
+            selected = filter == option,
+            onClick = { filter = option },
+            label = { Text(option.label) }
+          )
+        }
 
         FilterChip(
           selected = sortByRank,
@@ -117,14 +137,25 @@ internal fun PortfolioNftGrid(
           label = { Text("Best rank") }
         )
       }
+
+      Text(
+        text = when {
+          normalizedQuery.isNotBlank() -> "${visibleNfts.size} result${if (visibleNfts.size == 1) "" else "s"}"
+          filter != PortfolioFilter.All -> "${visibleNfts.size} ${filter.label.lowercase()}"
+          else -> "${visibleNfts.size} visible"
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+      )
     }
 
     if (visibleNfts.isEmpty()) {
       EmptyPortfolioState(
-        if (normalizedQuery.isBlank()) {
-          "No CowCow available"
-        } else {
-          "No CowCow matches \"$query\""
+        when {
+          normalizedQuery.isNotBlank() -> "No CowCow matches \"$query\""
+          filter == PortfolioFilter.Listed -> "No listed CowCow here"
+          filter == PortfolioFilter.Upgraded -> "No upgraded CowCow here"
+          else -> "No CowCow available"
         }
       )
       return@Column
@@ -148,11 +179,46 @@ internal fun PortfolioNftGrid(
 
 @Composable
 internal fun PortfolioLoadingState() {
-  Box(
+  LazyVerticalGrid(
     modifier = Modifier.fillMaxSize(),
-    contentAlignment = Alignment.Center
+    columns = GridCells.Adaptive(150.dp),
+    contentPadding = PaddingValues(16.dp),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-    CircularProgressIndicator()
+    items(6) {
+      Column(
+        modifier = Modifier
+          .clip(RoundedCornerShape(14.dp))
+          .background(MaterialTheme.colorScheme.surfaceVariant)
+      ) {
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+        )
+        Column(
+          modifier = Modifier.padding(10.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          Box(
+            modifier = Modifier
+              .fillMaxWidth(0.72f)
+              .height(14.dp)
+              .clip(RoundedCornerShape(6.dp))
+              .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+          )
+          Box(
+            modifier = Modifier
+              .fillMaxWidth(0.46f)
+              .height(10.dp)
+              .clip(RoundedCornerShape(6.dp))
+              .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+          )
+        }
+      }
+    }
   }
 }
 

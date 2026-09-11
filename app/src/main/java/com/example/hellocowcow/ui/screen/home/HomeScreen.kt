@@ -1,7 +1,6 @@
 package com.example.hellocowcow.ui.screen.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,25 +54,21 @@ fun HomeScreen(
   val statsState by viewModel.uiState.collectAsStateWithLifecycle()
   val salesState by viewModel.uiStateSold.collectAsStateWithLifecycle()
   val locale = LocalLocale.current.platformLocale
-  val hero = if (isSystemInDarkTheme()) R.drawable.home_dark else R.drawable.home_light
 
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
     contentPadding = PaddingValues(
-      start = 20.dp,
-      top = 20.dp,
-      end = 20.dp,
-      bottom = 32.dp
+      start = 16.dp,
+      top = 16.dp,
+      end = 16.dp,
+      bottom = 24.dp
     ),
-    verticalArrangement = Arrangement.spacedBy(24.dp)
+    verticalArrangement = Arrangement.spacedBy(18.dp)
   ) {
-    item {
-      ExploreHeader()
-    }
+    item { ExploreHeader() }
 
     item {
       ExploreHero(
-        hero = hero,
         onCollectionClick = onCollectionClick,
         onPortfolioClick = onPortfolioClick
       )
@@ -82,54 +77,34 @@ fun HomeScreen(
     item {
       SectionTitle(
         title = "Market snapshot",
-        subtitle = "A quick read on CowCow right now"
+        subtitle = "CowCow right now"
       )
     }
 
     when (val state = statsState) {
-      HomeViewModel.UiState.Loading -> item {
-        LoadingPanel()
-      }
-
+      HomeViewModel.UiState.Loading -> item { LoadingPanel() }
       is HomeViewModel.UiState.Error -> item {
-        ErrorPanel(
-          title = "Market data unavailable",
-          message = state.error
-        )
+        ErrorPanel("Market data unavailable", state.error)
       }
-
       is HomeViewModel.UiState.Success -> item {
-        MarketSnapshot(
-          stats = state.data,
-          locale = locale
-        )
+        MarketSnapshot(state.data, locale)
       }
     }
 
     item {
       SectionTitle(
-        title = "Latest sales",
-        subtitle = "What collectors are buying"
+        title = "Recent activity",
+        subtitle = "Latest CowCow sales"
       )
     }
 
     when (val state = salesState) {
-      HomeViewModel.UiStateSold.Loading -> item {
-        LoadingPanel()
-      }
-
+      HomeViewModel.UiStateSold.Loading -> item { LoadingPanel() }
       is HomeViewModel.UiStateSold.Error -> item {
-        ErrorPanel(
-          title = "Sales unavailable",
-          message = state.error
-        )
+        ErrorPanel("Sales unavailable", state.error)
       }
-
       is HomeViewModel.UiStateSold.Success -> item {
-        LatestSales(
-          sales = state.data,
-          locale = locale
-        )
+        LatestSales(state.data, locale)
       }
     }
   }
@@ -137,17 +112,15 @@ fun HomeScreen(
 
 @Composable
 private fun ExploreHeader() {
-  Column(
-    verticalArrangement = Arrangement.spacedBy(4.dp)
-  ) {
+  Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
     Text(
       text = "Hello CowCow",
       style = MaterialTheme.typography.headlineLarge,
       color = MaterialTheme.colorScheme.onBackground
     )
     Text(
-      text = "Your live view of the CowCow ecosystem on MultiversX.",
-      style = MaterialTheme.typography.bodyLarge,
+      text = "Cows. MOOVE. Community. On MultiversX.",
+      style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant
     )
   }
@@ -156,21 +129,18 @@ private fun ExploreHeader() {
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun ExploreHero(
-  hero: Int,
   onCollectionClick: () -> Unit,
   onPortfolioClick: () -> Unit
 ) {
-  Column(
-    verticalArrangement = Arrangement.spacedBy(12.dp)
-  ) {
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Box(
       modifier = Modifier
         .fillMaxWidth()
-        .height(224.dp)
-        .clip(RoundedCornerShape(28.dp))
+        .height(192.dp)
+        .clip(RoundedCornerShape(18.dp))
     ) {
       GlideImage(
-        model = hero,
+        model = R.drawable.home_dark,
         contentDescription = "CowCow collection artwork",
         modifier = Modifier.fillMaxSize(),
         contentScale = ContentScale.Crop
@@ -183,9 +153,9 @@ private fun ExploreHero(
             Brush.verticalGradient(
               colors = listOf(
                 Color.Transparent,
-                Color.Black.copy(alpha = 0.72f)
+                Color.Black.copy(alpha = 0.82f)
               ),
-              startY = 40f
+              startY = 20f
             )
           )
       )
@@ -193,15 +163,15 @@ private fun ExploreHero(
       Surface(
         modifier = Modifier
           .align(Alignment.TopStart)
-          .padding(16.dp),
+          .padding(12.dp),
         shape = RoundedCornerShape(100.dp),
-        color = Color.Black.copy(alpha = 0.55f),
+        color = Color.Black.copy(alpha = 0.64f),
         contentColor = Color.White
       ) {
         Text(
           text = "LIVE · MULTIVERSX",
-          modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-          style = MaterialTheme.typography.labelMedium,
+          modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+          style = MaterialTheme.typography.labelSmall,
           fontWeight = FontWeight.Bold
         )
       }
@@ -209,38 +179,37 @@ private fun ExploreHero(
       Column(
         modifier = Modifier
           .align(Alignment.BottomStart)
-          .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+          .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
       ) {
         Text(
           text = "Explore the herd",
-          style = MaterialTheme.typography.headlineMedium,
+          style = MaterialTheme.typography.headlineSmall,
           color = Color.White
         )
         Text(
-          text = "Market activity is public. Connect xPortal only for your portfolio and rewards.",
-          style = MaterialTheme.typography.bodyMedium,
-          color = Color.White.copy(alpha = 0.88f)
+          text = "Public market data. Wallet only when you need it.",
+          style = MaterialTheme.typography.bodySmall,
+          color = Color.White.copy(alpha = 0.82f)
         )
       }
     }
 
     Row(
       modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.spacedBy(12.dp)
+      horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
       Button(
         onClick = onCollectionClick,
         modifier = Modifier.weight(1f)
       ) {
-        Text("View collection")
+        Text("Collection")
       }
-
       FilledTonalButton(
         onClick = onPortfolioClick,
         modifier = Modifier.weight(1f)
       ) {
-        Text("My portfolio")
+        Text("Portfolio")
       }
     }
   }
@@ -251,12 +220,10 @@ private fun MarketSnapshot(
   stats: HomeViewModel.SomeStats,
   locale: Locale
 ) {
-  Column(
-    verticalArrangement = Arrangement.spacedBy(12.dp)
-  ) {
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Row(
       modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.spacedBy(12.dp)
+      horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
       MetricCard(
         label = "Floor",
@@ -268,14 +235,14 @@ private fun MarketSnapshot(
       MetricCard(
         label = "Volume",
         value = "${formatNumber(locale, "%.1f", stats.totalEgldVolume)} EGLD",
-        supporting = "All-time volume",
+        supporting = "All-time",
         modifier = Modifier.weight(1f)
       )
     }
 
     Row(
       modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.spacedBy(12.dp)
+      horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
       MetricCard(
         label = "Staked",
@@ -293,7 +260,7 @@ private fun MarketSnapshot(
 
     Card(
       modifier = Modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(22.dp),
+      shape = RoundedCornerShape(16.dp),
       colors = CardDefaults.cardColors(
         containerColor = MaterialTheme.colorScheme.secondaryContainer
       )
@@ -301,13 +268,11 @@ private fun MarketSnapshot(
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(18.dp),
+          .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column(
-          verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
           Text(
             text = "MOOVE",
             style = MaterialTheme.typography.labelLarge,
@@ -321,12 +286,12 @@ private fun MarketSnapshot(
         }
         Column(
           horizontalAlignment = Alignment.End,
-          verticalArrangement = Arrangement.spacedBy(3.dp)
+          verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
           Text(
             text = "Market cap",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f)
+            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.70f)
           )
           Text(
             text = "$${formatNumber(locale, "%,.0f", stats.mooveMC)}",
@@ -360,21 +325,21 @@ private fun MetricCard(
 
   Card(
     modifier = modifier,
-    shape = RoundedCornerShape(22.dp),
+    shape = RoundedCornerShape(16.dp),
     colors = CardDefaults.cardColors(containerColor = containerColor)
   ) {
     Column(
-      modifier = Modifier.padding(18.dp),
-      verticalArrangement = Arrangement.spacedBy(5.dp)
+      modifier = Modifier.padding(14.dp),
+      verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
       Text(
         text = label,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.labelMedium,
         color = contentColor.copy(alpha = 0.72f)
       )
       Text(
         text = value,
-        style = MaterialTheme.typography.titleLarge,
+        style = MaterialTheme.typography.titleMedium,
         color = contentColor,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
@@ -382,27 +347,21 @@ private fun MetricCard(
       Text(
         text = supporting,
         style = MaterialTheme.typography.bodySmall,
-        color = contentColor.copy(alpha = 0.68f)
+        color = contentColor.copy(alpha = 0.64f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
       )
     }
   }
 }
 
 @Composable
-private fun SectionTitle(
-  title: String,
-  subtitle: String
-) {
-  Column(
-    verticalArrangement = Arrangement.spacedBy(2.dp)
-  ) {
-    Text(
-      text = title,
-      style = MaterialTheme.typography.titleLarge
-    )
+private fun SectionTitle(title: String, subtitle: String) {
+  Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+    Text(text = title, style = MaterialTheme.typography.titleLarge)
     Text(
       text = subtitle,
-      style = MaterialTheme.typography.bodyMedium,
+      style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant
     )
   }
@@ -416,12 +375,12 @@ private fun LatestSales(
   if (sales.isEmpty()) {
     Surface(
       modifier = Modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(22.dp),
+      shape = RoundedCornerShape(16.dp),
       color = MaterialTheme.colorScheme.surfaceVariant
     ) {
       Text(
         text = "No recent sales to show.",
-        modifier = Modifier.padding(20.dp),
+        modifier = Modifier.padding(16.dp),
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
     }
@@ -429,14 +388,11 @@ private fun LatestSales(
   }
 
   LazyRow(
-    contentPadding = PaddingValues(end = 8.dp),
-    horizontalArrangement = Arrangement.spacedBy(12.dp)
+    contentPadding = PaddingValues(end = 6.dp),
+    horizontalArrangement = Arrangement.spacedBy(10.dp)
   ) {
     items(sales) { sale ->
-      SaleCard(
-        sale = sale,
-        locale = locale
-      )
+      SaleCard(sale, locale)
     }
   }
 }
@@ -448,8 +404,8 @@ private fun SaleCard(
   locale: Locale
 ) {
   Card(
-    modifier = Modifier.width(178.dp),
-    shape = RoundedCornerShape(22.dp),
+    modifier = Modifier.width(158.dp),
+    shape = RoundedCornerShape(16.dp),
     colors = CardDefaults.cardColors(
       containerColor = MaterialTheme.colorScheme.surfaceVariant
     )
@@ -459,13 +415,13 @@ private fun SaleCard(
       contentDescription = sale.name,
       modifier = Modifier
         .fillMaxWidth()
-        .height(142.dp),
+        .height(124.dp),
       contentScale = ContentScale.Crop
     )
 
     Column(
-      modifier = Modifier.padding(14.dp),
-      verticalArrangement = Arrangement.spacedBy(5.dp)
+      modifier = Modifier.padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
       Text(
         text = sale.name ?: sale.identifier ?: "CowCow",
@@ -482,15 +438,8 @@ private fun SaleCard(
         text = sale.egldValue?.let {
           "${formatNumber(locale, "%.2f", it)} EGLD"
         } ?: "— EGLD",
-        style = MaterialTheme.typography.titleMedium,
+        style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary
-      )
-      Text(
-        text = sale.usdPrice?.let {
-          "$${formatNumber(locale, "%,.0f", it)}"
-        } ?: "",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
       )
     }
   }
@@ -501,34 +450,31 @@ private fun LoadingPanel() {
   Surface(
     modifier = Modifier
       .fillMaxWidth()
-      .height(132.dp),
-    shape = RoundedCornerShape(22.dp),
+      .height(112.dp),
+    shape = RoundedCornerShape(16.dp),
     color = MaterialTheme.colorScheme.surfaceVariant
   ) {
     Box(
       modifier = Modifier.fillMaxSize(),
       contentAlignment = Alignment.Center
     ) {
-      CircularProgressIndicator(modifier = Modifier.size(28.dp))
+      CircularProgressIndicator(modifier = Modifier.size(26.dp))
     }
   }
 }
 
 @Composable
-private fun ErrorPanel(
-  title: String,
-  message: String
-) {
+private fun ErrorPanel(title: String, message: String) {
   Card(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(22.dp),
+    shape = RoundedCornerShape(16.dp),
     colors = CardDefaults.cardColors(
       containerColor = MaterialTheme.colorScheme.errorContainer
     )
   ) {
     Column(
-      modifier = Modifier.padding(18.dp),
-      verticalArrangement = Arrangement.spacedBy(4.dp)
+      modifier = Modifier.padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
       Text(
         text = title,

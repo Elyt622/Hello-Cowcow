@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,65 +53,36 @@ private fun CollectionDashboard(
 ) {
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
-    contentPadding = PaddingValues(20.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp)
+    contentPadding = PaddingValues(16.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
     item {
-      CollectionHero(
-        collection = collection,
-        locale = locale
-      )
+      CollectionHero(collection, locale)
     }
 
-    item {
-      SectionLabel(
-        title = "The herd",
-        subtitle = "Ownership and supply signals"
-      )
-    }
+    item { SectionLabel("The herd", "Supply and ownership") }
 
     item {
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
       ) {
-        MetricCard(
-          label = "Staked",
-          value = formatCount(locale, collection.stakedCount),
-          modifier = Modifier.weight(1f)
-        )
-        MetricCard(
-          label = "Listed",
-          value = formatCount(locale, collection.listedCount),
-          modifier = Modifier.weight(1f)
-        )
+        MetricCard("Staked", formatCount(locale, collection.stakedCount), Modifier.weight(1f))
+        MetricCard("Listed", formatCount(locale, collection.listedCount), Modifier.weight(1f))
       }
     }
 
     item {
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
       ) {
-        MetricCard(
-          label = "Holders",
-          value = formatCount(locale, collection.holdersCount),
-          modifier = Modifier.weight(1f)
-        )
-        MetricCard(
-          label = "Upgraded",
-          value = formatCount(locale, collection.totalUpgradedCount),
-          modifier = Modifier.weight(1f)
-        )
+        MetricCard("Holders", formatCount(locale, collection.holdersCount), Modifier.weight(1f))
+        MetricCard("Upgraded", formatCount(locale, collection.totalUpgradedCount), Modifier.weight(1f))
       }
     }
 
-    item {
-      SectionLabel(
-        title = "Trading activity",
-        subtitle = "Volume without invented charts"
-      )
-    }
+    item { SectionLabel("Trading", "Volume and market depth") }
 
     item {
       InsightCard(
@@ -122,12 +94,7 @@ private fun CollectionDashboard(
       )
     }
 
-    item {
-      SectionLabel(
-        title = "Market history",
-        subtitle = "Longer-term collection signals"
-      )
-    }
+    item { SectionLabel("History", "Longer-term collection signals") }
 
     item {
       InsightCard(
@@ -148,30 +115,43 @@ private fun CollectionHero(
 ) {
   Surface(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(28.dp),
+    shape = RoundedCornerShape(16.dp),
     color = MaterialTheme.colorScheme.primaryContainer,
     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
   ) {
-    Column(
-      modifier = Modifier.padding(22.dp),
-      verticalArrangement = Arrangement.spacedBy(6.dp)
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(16.dp),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
     ) {
-      Text(
-        text = "CowCow floor",
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
-      )
-      Text(
-        text = formatEgld(locale, collection.floorPrice),
-        style = MaterialTheme.typography.headlineMedium
-      )
-      Text(
-        text = collection.athEgldPrice?.let {
-          "ATH ${formatEgld(locale, it)}"
-        } ?: "ATH unavailable",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
-      )
+      Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+          text = "FLOOR PRICE",
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.68f)
+        )
+        Text(
+          text = formatEgld(locale, collection.floorPrice),
+          style = MaterialTheme.typography.headlineMedium,
+          fontWeight = FontWeight.Bold
+        )
+      }
+      Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+      ) {
+        Text(
+          text = "ATH",
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.68f)
+        )
+        Text(
+          text = collection.athEgldPrice?.let { formatEgld(locale, it) } ?: "—",
+          style = MaterialTheme.typography.titleSmall
+        )
+      }
     }
   }
 }
@@ -184,23 +164,24 @@ private fun MetricCard(
 ) {
   Card(
     modifier = modifier,
-    shape = RoundedCornerShape(22.dp),
+    shape = RoundedCornerShape(14.dp),
     colors = CardDefaults.cardColors(
       containerColor = MaterialTheme.colorScheme.surfaceVariant
     )
   ) {
     Column(
-      modifier = Modifier.padding(18.dp),
-      verticalArrangement = Arrangement.spacedBy(5.dp)
+      modifier = Modifier.padding(14.dp),
+      verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
       Text(
         text = label,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
       Text(
         text = value,
-        style = MaterialTheme.typography.titleLarge,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
       )
@@ -209,30 +190,26 @@ private fun MetricCard(
 }
 
 @Composable
-private fun InsightCard(
-  rows: List<Pair<String, String>>
-) {
+private fun InsightCard(rows: List<Pair<String, String>>) {
   Card(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(22.dp),
+    shape = RoundedCornerShape(14.dp),
     colors = CardDefaults.cardColors(
       containerColor = MaterialTheme.colorScheme.surfaceVariant
     )
   ) {
-    Column(
-      modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)
-    ) {
+    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
       rows.forEachIndexed { index, row ->
         Row(
           modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 10.dp),
+            .padding(vertical = 9.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
           Text(
             text = row.first,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
           Text(
@@ -252,20 +229,12 @@ private fun InsightCard(
 }
 
 @Composable
-private fun SectionLabel(
-  title: String,
-  subtitle: String
-) {
-  Column(
-    verticalArrangement = Arrangement.spacedBy(2.dp)
-  ) {
-    Text(
-      text = title,
-      style = MaterialTheme.typography.titleLarge
-    )
+private fun SectionLabel(title: String, subtitle: String) {
+  Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+    Text(text = title, style = MaterialTheme.typography.titleMedium)
     Text(
       text = subtitle,
-      style = MaterialTheme.typography.bodyMedium,
+      style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant
     )
   }
@@ -286,18 +255,18 @@ private fun CollectionError(message: String) {
   Box(
     modifier = Modifier
       .fillMaxSize()
-      .padding(20.dp),
+      .padding(16.dp),
     contentAlignment = Alignment.Center
   ) {
     Card(
       colors = CardDefaults.cardColors(
         containerColor = MaterialTheme.colorScheme.errorContainer
       ),
-      shape = RoundedCornerShape(22.dp)
+      shape = RoundedCornerShape(14.dp)
     ) {
       Text(
         text = message,
-        modifier = Modifier.padding(18.dp),
+        modifier = Modifier.padding(16.dp),
         color = MaterialTheme.colorScheme.onErrorContainer
       )
     }

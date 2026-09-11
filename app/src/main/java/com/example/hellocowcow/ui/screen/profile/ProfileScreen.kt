@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
@@ -29,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -58,19 +62,23 @@ fun ProfileScreen(
     viewModel.load(account.address)
   }
 
-  Column(
-    modifier = Modifier.fillMaxSize()
-  ) {
+  Column(modifier = Modifier.fillMaxSize()) {
     Column(
       modifier = Modifier.padding(
-        start = 20.dp,
-        top = 20.dp,
-        end = 20.dp,
-        bottom = 16.dp
+        start = 16.dp,
+        top = 14.dp,
+        end = 16.dp,
+        bottom = 10.dp
       ),
-      verticalArrangement = Arrangement.spacedBy(16.dp)
+      verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-      PortfolioHeader(account)
+      Text(
+        text = "Portfolio",
+        style = MaterialTheme.typography.headlineLarge,
+        color = MaterialTheme.colorScheme.onBackground
+      )
+
+      WalletIdentityCard(account)
 
       RewardsCard(
         rewardState = rewardState,
@@ -79,14 +87,8 @@ fun ProfileScreen(
       )
 
       when (val currentTransactionState = transactionState) {
-        is ProfileViewModel.UiStateTx.Send -> {
-          CustomAlert(tx = currentTransactionState.tx)
-        }
-
-        is ProfileViewModel.UiStateTx.Error -> {
-          InlineError(currentTransactionState.error)
-        }
-
+        is ProfileViewModel.UiStateTx.Send -> CustomAlert(tx = currentTransactionState.tx)
+        is ProfileViewModel.UiStateTx.Error -> InlineError(currentTransactionState.error)
         else -> Unit
       }
     }
@@ -100,37 +102,61 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun PortfolioHeader(account: DomainAccount) {
+private fun WalletIdentityCard(account: DomainAccount) {
   val username = account.username
     .substringBefore(".elrond")
     .takeIf { it.isNotBlank() }
   val address = account.address
   val shortAddress = if (address.length > 18) {
-    "${address.take(10)}…${address.takeLast(6)}"
+    "${address.take(8)}…${address.takeLast(6)}"
   } else {
     address
   }
 
-  Column(
-    verticalArrangement = Arrangement.spacedBy(4.dp)
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(14.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant
   ) {
-    Text(
-      text = "Your CowCow portfolio",
-      style = MaterialTheme.typography.headlineLarge,
-      color = MaterialTheme.colorScheme.onBackground
-    )
-    Text(
-      text = username?.let { "Hello $it" } ?: "Connected with xPortal",
-      style = MaterialTheme.typography.titleMedium,
-      color = MaterialTheme.colorScheme.onSurface
-    )
-    Text(
-      text = shortAddress,
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis
-    )
+    Row(
+      modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+      Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.primary
+      ) {
+        Text(
+          text = "xP",
+          modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
+          style = MaterialTheme.typography.labelLarge,
+          fontWeight = FontWeight.Bold
+        )
+      }
+
+      Column(modifier = Modifier.weight(1f)) {
+        Text(
+          text = username?.let { "Connected as $it" } ?: "Connected with xPortal",
+          style = MaterialTheme.typography.titleSmall,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+        Text(
+          text = shortAddress,
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
+
+      Icon(
+        imageVector = Icons.Filled.CheckCircle,
+        contentDescription = "Connected",
+        tint = MaterialTheme.colorScheme.secondary,
+        modifier = Modifier.size(18.dp)
+      )
+    }
   }
 }
 
@@ -145,93 +171,92 @@ private fun RewardsCard(
 
   Surface(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(28.dp),
+    shape = RoundedCornerShape(16.dp),
     color = MaterialTheme.colorScheme.secondaryContainer,
     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
   ) {
     Column(
-      modifier = Modifier.padding(20.dp),
-      verticalArrangement = Arrangement.spacedBy(14.dp)
+      modifier = Modifier.padding(15.dp),
+      verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column(
+        Row(
           modifier = Modifier.weight(1f),
-          verticalArrangement = Arrangement.spacedBy(3.dp)
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-          Text(
-            text = "MOOVE rewards",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f)
+          Image(
+            imageVector = ImageVector.vectorResource(id = R.drawable.moovelogo),
+            contentDescription = "MOOVE",
+            modifier = Modifier.size(36.dp)
           )
 
-          when (rewardState) {
-            ProfileViewModel.UiState.Loading -> {
-              Text(
-                text = "Loading rewards…",
-                style = MaterialTheme.typography.titleMedium
-              )
-            }
-
-            is ProfileViewModel.UiState.Success -> {
-              Text(
-                text = rewardState.data,
-                style = MaterialTheme.typography.headlineMedium
-              )
-              Text(
-                text = "MOOVE ready to claim",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f)
-              )
-            }
-
-            is ProfileViewModel.UiState.Error -> {
-              Text(
-                text = "Rewards unavailable",
-                style = MaterialTheme.typography.titleMedium
-              )
-            }
-          }
-        }
-
-        Image(
-          imageVector = ImageVector.vectorResource(id = R.drawable.moovelogo),
-          contentDescription = "MOOVE",
-          modifier = Modifier.size(42.dp)
-        )
-      }
-
-      when {
-        transactionState is ProfileViewModel.UiStateTx.AwaitingSignature -> {
-          ClaimStatus("Confirm the transaction in xPortal")
-        }
-
-        transactionState is ProfileViewModel.UiStateTx.Broadcasting -> {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-          ) {
-            CircularProgressIndicator(
-              modifier = Modifier.size(20.dp),
-              strokeWidth = 2.dp,
-              color = MaterialTheme.colorScheme.onSecondaryContainer
+          Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+              text = "MOOVE rewards",
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f)
             )
-            ClaimStatus("Broadcasting on MultiversX…")
+
+            when (rewardState) {
+              ProfileViewModel.UiState.Loading -> Text(
+                text = "Loading…",
+                style = MaterialTheme.typography.titleMedium
+              )
+
+              is ProfileViewModel.UiState.Success -> Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+              ) {
+                Text(
+                  text = rewardState.data,
+                  style = MaterialTheme.typography.headlineMedium,
+                  fontWeight = FontWeight.Bold,
+                  maxLines = 1
+                )
+                Text(
+                  text = "MOOVE",
+                  style = MaterialTheme.typography.labelMedium,
+                  modifier = Modifier.padding(bottom = 4.dp)
+                )
+              }
+
+              is ProfileViewModel.UiState.Error -> Text(
+                text = "Unavailable",
+                style = MaterialTheme.typography.titleMedium
+              )
+            }
           }
         }
 
-        else -> {
+        if (!busy) {
           Button(
             onClick = onClaim,
-            enabled = rewardState is ProfileViewModel.UiState.Success && !busy,
-            modifier = Modifier.fillMaxWidth()
+            enabled = rewardState is ProfileViewModel.UiState.Success
           ) {
-            Text("Claim rewards")
+            Text("Claim")
           }
         }
+      }
+
+      when (transactionState) {
+        is ProfileViewModel.UiStateTx.AwaitingSignature -> ClaimStatus("Confirm in xPortal")
+        is ProfileViewModel.UiStateTx.Broadcasting -> Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+          CircularProgressIndicator(
+            modifier = Modifier.size(16.dp),
+            strokeWidth = 2.dp,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+          )
+          ClaimStatus("Broadcasting on MultiversX…")
+        }
+        else -> Unit
       }
 
       if (rewardState is ProfileViewModel.UiState.Error) {
@@ -249,7 +274,7 @@ private fun RewardsCard(
 private fun ClaimStatus(message: String) {
   Text(
     text = message,
-    style = MaterialTheme.typography.bodyMedium,
+    style = MaterialTheme.typography.bodySmall,
     color = MaterialTheme.colorScheme.onSecondaryContainer
   )
 }
@@ -258,14 +283,14 @@ private fun ClaimStatus(message: String) {
 private fun InlineError(message: String) {
   Card(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(18.dp),
+    shape = RoundedCornerShape(12.dp),
     colors = CardDefaults.cardColors(
       containerColor = MaterialTheme.colorScheme.errorContainer
     )
   ) {
     Text(
       text = message,
-      modifier = Modifier.padding(14.dp),
+      modifier = Modifier.padding(11.dp),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onErrorContainer
     )
@@ -281,9 +306,7 @@ private fun PortfolioTabs(
   var tabIndex by remember { mutableIntStateOf(0) }
   val tabs = listOf("Owned", "Staked", "Listed")
 
-  Column(
-    modifier = modifier.fillMaxWidth()
-  ) {
+  Column(modifier = modifier.fillMaxWidth()) {
     SecondaryTabRow(
       selectedTabIndex = tabIndex,
       containerColor = MaterialTheme.colorScheme.background,
@@ -294,7 +317,8 @@ private fun PortfolioTabs(
           text = {
             Text(
               text = title,
-              style = MaterialTheme.typography.labelLarge
+              style = MaterialTheme.typography.labelLarge,
+              fontWeight = if (tabIndex == index) FontWeight.SemiBold else FontWeight.Normal
             )
           },
           selected = tabIndex == index,
