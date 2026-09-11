@@ -29,6 +29,7 @@ class TransactionCostRepositoryImpl @Inject constructor(
           chainID = transaction.chainID,
           version = transaction.version,
           options = transaction.options,
+          guardian = transaction.guardian,
           data = transaction.data
         )
       )
