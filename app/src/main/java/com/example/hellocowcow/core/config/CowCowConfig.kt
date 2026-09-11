@@ -19,10 +19,4 @@ object CowCowConfig {
   const val GUARDED_TRANSACTION_GAS_OVERHEAD = 50_000L
   const val CLAIM_REWARDS_DATA = "Y2xhaW1SZXdhcmRz"
   const val MOOVE_DECIMALS = 18
-
-  // Verified from the same four CowCow nonces:
-  // unstake 2026-07-13 13:38:36 UTC -> claim 2026-07-20 14:25:24 UTC.
-  // The historical claim succeeded 7 days + 46m48s later, establishing a
-  // seven-day minimum unbonding period for the deployed legacy contract.
-  const val UNBONDING_PERIOD_SECONDS = 7L * 24L * 60L * 60L
 }
