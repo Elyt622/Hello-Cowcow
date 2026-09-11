@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -20,6 +21,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.hellocowcow.domain.models.DomainAccount
@@ -38,6 +42,8 @@ import com.example.hellocowcow.domain.models.RecoverySnapshot
 import com.example.hellocowcow.ui.viewmodels.screen.recovery.RecoveryViewModel
 import java.math.BigDecimal
 import java.math.RoundingMode
+
+private const val XEXCHANGE_TRADE_URL = "https://xexchange.com/trade"
 
 @Composable
 fun RecoveryScreen(
@@ -73,8 +79,8 @@ fun RecoveryScreen(
     modifier = Modifier
       .fillMaxSize()
       .verticalScroll(rememberScrollState())
-      .padding(20.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp)
+      .padding(16.dp),
+    verticalArrangement = Arrangement.spacedBy(14.dp)
   ) {
     RecoveryHeader()
 
@@ -93,15 +99,15 @@ fun RecoveryScreen(
 
 @Composable
 private fun RecoveryHeader() {
-  Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+  Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
     Text(
-      text = "Emergency unstake",
+      text = "Recovery",
       style = MaterialTheme.typography.headlineLarge,
       color = MaterialTheme.colorScheme.onBackground
     )
     Text(
-      text = "A guided recovery path for CowCows still locked in the legacy staking contract.",
-      style = MaterialTheme.typography.bodyLarge,
+      text = "Get your CowCows back, step by step.",
+      style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant
     )
   }
@@ -111,19 +117,19 @@ private fun RecoveryHeader() {
 private fun RecoveryLoading() {
   Surface(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(24.dp),
+    shape = RoundedCornerShape(16.dp),
     color = MaterialTheme.colorScheme.surfaceVariant
   ) {
     Row(
-      modifier = Modifier.padding(20.dp),
+      modifier = Modifier.padding(16.dp),
       verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(12.dp)
+      horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-      CircularProgressIndicator()
+      CircularProgressIndicator(modifier = Modifier.padding(2.dp))
       Column {
-        Text("Checking your recovery position", style = MaterialTheme.typography.titleMedium)
+        Text("Checking recovery position", style = MaterialTheme.typography.titleMedium)
         Text(
-          "Reading rewards and MOOVE balances from MultiversX…",
+          "Reading CowCow and MOOVE data from MultiversX…",
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           style = MaterialTheme.typography.bodySmall
         )
@@ -136,12 +142,12 @@ private fun RecoveryLoading() {
 private fun RecoveryError(message: String) {
   Card(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(22.dp),
+    shape = RoundedCornerShape(16.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
   ) {
     Column(
-      modifier = Modifier.padding(18.dp),
-      verticalArrangement = Arrangement.spacedBy(6.dp)
+      modifier = Modifier.padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
       Text("Recovery diagnostic unavailable", style = MaterialTheme.typography.titleMedium)
       Text(message, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -166,12 +172,16 @@ private fun RecoveryDiagnostic(
     amountToAcquire = snapshot.amountToAcquire
   )
 
-  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     MetricRow("Rewards owed", snapshot.claimableRewards, "MOOVE")
-    MetricRow("MOOVE in your wallet", snapshot.walletMooveBalance, "MOOVE")
+    MetricRow("Your MOOVE balance", snapshot.walletMooveBalance, "MOOVE")
     MetricRow("MOOVE to acquire", snapshot.amountToAcquire, "MOOVE", emphasize = true)
-    MetricRow("Recommended contract top-up", snapshot.recommendedTopUp, "MOOVE")
+    MetricRow("Recommended top-up", snapshot.recommendedTopUp, "MOOVE")
     MetricRow("Contract balance", snapshot.contractMooveBalance, "MOOVE", informational = true)
+  }
+
+  if (snapshot.amountToAcquire > BigDecimal.ZERO) {
+    AcquireMooveCard(snapshot.amountToAcquire)
   }
 
   TopUpActionCard(
@@ -188,6 +198,49 @@ private fun RecoveryDiagnostic(
 }
 
 @Composable
+private fun AcquireMooveCard(amountToAcquire: BigDecimal) {
+  val uriHandler = LocalUriHandler.current
+
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(16.dp),
+    color = MaterialTheme.colorScheme.primaryContainer,
+    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+  ) {
+    Column(
+      modifier = Modifier.padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+      Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+          text = "1 · Buy MOOVE",
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.SemiBold
+        )
+        Text(
+          text = "You still need about ${formatMoove(amountToAcquire)} MOOVE before the contract can be funded.",
+          style = MaterialTheme.typography.bodySmall
+        )
+      }
+
+      OutlinedButton(
+        onClick = { uriHandler.openUri(XEXCHANGE_TRADE_URL) },
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Icon(
+          imageVector = Icons.Filled.OpenInNew,
+          contentDescription = null
+        )
+        Text(
+          text = "Open xExchange",
+          modifier = Modifier.padding(start = 8.dp)
+        )
+      }
+    }
+  }
+}
+
+@Composable
 private fun TopUpActionCard(
   snapshot: RecoverySnapshot,
   readyToFund: Boolean,
@@ -198,17 +251,17 @@ private fun TopUpActionCard(
 ) {
   Surface(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(24.dp),
+    shape = RoundedCornerShape(16.dp),
     color = MaterialTheme.colorScheme.surfaceVariant
   ) {
     Column(
-      modifier = Modifier.padding(18.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp)
+      modifier = Modifier.padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-      Text("Step 2 · Fund CowCow Staking", style = MaterialTheme.typography.titleLarge)
+      Text("2 · Fund CowCow Staking", style = MaterialTheme.typography.titleMedium)
       Text(
-        "This sends ${formatMoove(snapshot.recommendedTopUp)} MOOVE directly to the CowCow staking contract. It is not a swap and the tokens leave your wallet.",
-        style = MaterialTheme.typography.bodyMedium,
+        "Send ${formatMoove(snapshot.recommendedTopUp)} MOOVE directly to the CowCow staking contract. The tokens leave your wallet and xPortal will ask you to sign.",
+        style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
 
@@ -217,13 +270,14 @@ private fun TopUpActionCard(
         RecoveryViewModel.TransactionUiState.Broadcasting -> TransactionStatus("Broadcasting the MOOVE transfer…", loading = true)
         is RecoveryViewModel.TransactionUiState.Success -> {
           Card(
+            shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
           ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
               Text("Contract funded", style = MaterialTheme.typography.titleMedium)
               transactionState.transaction.txHash?.let { hash ->
                 Text(
-                  "Transaction ${hash.take(10)}…${hash.takeLast(8)}",
+                  "${hash.take(10)}…${hash.takeLast(8)}",
                   style = MaterialTheme.typography.bodySmall
                 )
               }
@@ -232,9 +286,10 @@ private fun TopUpActionCard(
         }
         is RecoveryViewModel.TransactionUiState.Error -> {
           Card(
+            shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
           ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
               Text(transactionState.message, color = MaterialTheme.colorScheme.onErrorContainer)
               TextButton(onClick = onDismissError) { Text("Dismiss") }
             }
@@ -253,7 +308,7 @@ private fun TopUpActionCard(
           if (snapshot.amountToAcquire > BigDecimal.ZERO) {
             "Acquire ${formatMoove(snapshot.amountToAcquire)} MOOVE first"
           } else {
-            "Review and fund contract"
+            "Send MOOVE to contract"
           }
         )
       }
@@ -265,10 +320,10 @@ private fun TopUpActionCard(
 private fun TransactionStatus(message: String, loading: Boolean = false) {
   Row(
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(10.dp)
+    horizontalArrangement = Arrangement.spacedBy(8.dp)
   ) {
     if (loading) CircularProgressIndicator()
-    Text(message, style = MaterialTheme.typography.bodyMedium)
+    Text(message, style = MaterialTheme.typography.bodySmall)
   }
 }
 
@@ -283,7 +338,7 @@ private fun TopUpConfirmationDialog(
     title = { Text("Fund CowCow Staking?") },
     text = {
       Text(
-        "You are about to send ${formatMoove(amount)} MOOVE to the legacy CowCow staking contract. This is the prefunding step of the community recovery procedure. xPortal will still ask you to sign the transaction."
+        "You are about to send ${formatMoove(amount)} MOOVE to the legacy CowCow staking contract. xPortal will still ask you to sign the transaction."
       )
     },
     confirmButton = {
@@ -300,36 +355,45 @@ private fun StatusCard(
   ready: Boolean,
   amountToAcquire: BigDecimal
 ) {
-  val container = if (ready) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer
-  val content = if (ready) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
+  val container = if (ready) {
+    MaterialTheme.colorScheme.secondaryContainer
+  } else {
+    MaterialTheme.colorScheme.primaryContainer
+  }
+  val content = if (ready) {
+    MaterialTheme.colorScheme.onSecondaryContainer
+  } else {
+    MaterialTheme.colorScheme.onPrimaryContainer
+  }
 
   Surface(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(28.dp),
+    shape = RoundedCornerShape(16.dp),
     color = container,
     contentColor = content
   ) {
     Row(
-      modifier = Modifier.padding(20.dp),
-      horizontalArrangement = Arrangement.spacedBy(14.dp),
+      modifier = Modifier.padding(16.dp),
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
       verticalAlignment = Alignment.CenterVertically
     ) {
       Icon(
         imageVector = if (ready) Icons.Filled.CheckCircle else Icons.Filled.WarningAmber,
         contentDescription = null
       )
-      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
-          text = if (ready) "You already hold enough MOOVE" else "MOOVE is missing for recovery",
-          style = MaterialTheme.typography.titleLarge
+          text = if (ready) "Ready to fund" else "MOOVE missing",
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.SemiBold
         )
         Text(
           text = if (ready) {
-            "The wallet can cover the recovery top-up amount."
+            "Your wallet can cover the recommended top-up."
           } else {
-            "Acquire about ${formatMoove(amountToAcquire)} MOOVE before funding the staking contract."
+            "Acquire ${formatMoove(amountToAcquire)} MOOVE to continue."
           },
-          style = MaterialTheme.typography.bodyMedium
+          style = MaterialTheme.typography.bodySmall
         )
       }
     }
@@ -346,23 +410,27 @@ private fun MetricRow(
 ) {
   Card(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(20.dp),
+    shape = RoundedCornerShape(14.dp),
     colors = CardDefaults.cardColors(
-      containerColor = if (emphasize) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
+      containerColor = if (emphasize) {
+        MaterialTheme.colorScheme.primaryContainer
+      } else {
+        MaterialTheme.colorScheme.surfaceVariant
+      }
     )
   ) {
     Row(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(16.dp),
+        .padding(horizontal = 14.dp, vertical = 12.dp),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically
     ) {
       Column(modifier = Modifier.weight(1f)) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
+        Text(label, style = MaterialTheme.typography.labelMedium)
         if (informational) {
           Text(
-            "Informational only — not reserved for your unstake",
+            "Global balance · not reserved for you",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
@@ -370,7 +438,7 @@ private fun MetricRow(
       }
       Text(
         text = "${formatMoove(value)} $unit",
-        style = MaterialTheme.typography.titleMedium
+        style = MaterialTheme.typography.titleSmall
       )
     }
   }
@@ -378,12 +446,12 @@ private fun MetricRow(
 
 @Composable
 private fun RecoverySteps() {
-  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Text("Recovery path", style = MaterialTheme.typography.titleLarge)
-    RecoveryStep(1, "Acquire the missing MOOVE", "Use a live quote and review slippage before signing the swap.")
-    RecoveryStep(2, "Fund CowCow Staking", "Send the full reward amount to the staking contract before unstaking.")
-    RecoveryStep(3, "Unstake in xPortal", "The recovery procedure expects the prefunded MOOVE to be returned during unstake.")
-    RecoveryStep(4, "Return after 7 days", "Finalize the unbond step to recover the CowCows, then optionally swap MOOVE back to EGLD.")
+    RecoveryStep(3, "Unstake", "Return the prefunded rewards during the unstake transaction.")
+    RecoveryStep(4, "Wait 7 days", "CowCows remain in the unbonding period.")
+    RecoveryStep(5, "Unbond", "Finalize recovery and return the CowCows to your wallet.")
+    RecoveryStep(6, "Optional · MOOVE → EGLD", "Open xExchange after recovery if you want to swap the returned MOOVE.")
   }
 }
 
@@ -391,17 +459,31 @@ private fun RecoverySteps() {
 private fun RecoveryStep(number: Int, title: String, detail: String) {
   Surface(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(18.dp),
+    shape = RoundedCornerShape(14.dp),
     color = MaterialTheme.colorScheme.surfaceVariant
   ) {
     Row(
-      modifier = Modifier.padding(16.dp),
-      horizontalArrangement = Arrangement.spacedBy(12.dp)
+      modifier = Modifier.padding(14.dp),
+      horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-      Text("$number", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-      Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Surface(
+        shape = RoundedCornerShape(100.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+      ) {
+        Text(
+          text = "$number",
+          modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+          style = MaterialTheme.typography.labelLarge
+        )
+      }
+      Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall)
+        Text(
+          detail,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
       }
     }
   }
@@ -411,19 +493,19 @@ private fun RecoveryStep(number: Int, title: String, detail: String) {
 private fun ContractActionLockNotice() {
   Surface(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(22.dp),
+    shape = RoundedCornerShape(14.dp),
     color = MaterialTheme.colorScheme.surfaceVariant
   ) {
     Row(
-      modifier = Modifier.padding(18.dp),
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      modifier = Modifier.padding(14.dp),
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
       verticalAlignment = Alignment.CenterVertically
     ) {
       Icon(Icons.Filled.Lock, contentDescription = null)
       Column {
-        Text("Unstake and unbond are still locked", style = MaterialTheme.typography.titleMedium)
+        Text("Unstake and unbond are locked", style = MaterialTheme.typography.titleSmall)
         Text(
-          "Those CowCow-specific calls will be enabled only after their exact endpoints and arguments are verified from real historical transactions or the patched dapp.",
+          "They will unlock only after the exact CowCow calls are verified from known-working transactions.",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
