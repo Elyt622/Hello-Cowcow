@@ -23,7 +23,7 @@ class RecoveryRepositoryImpl @Inject constructor(
     require(address.isNotBlank()) { "Wallet address is required for recovery diagnostics" }
 
     val claimableRewards = MooveRewardDecoder.decodeClaimableAmount(
-      rewardsRepository.getUserData(address, forceRefresh = forceRefreshRewards)
+      rewardsRepository.getUserData(address)
     )
     val walletBalance = getMooveBalance(address)
     val contractBalance = getMooveBalance(CowCowConfig.REWARDS_CONTRACT)
