@@ -1,7 +1,6 @@
 package com.example.hellocowcow.ui.theme
 
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -17,9 +16,10 @@ private val DarkColorScheme = darkColorScheme(
   primaryContainer = CowDarkPrimaryContainer,
   onPrimaryContainer = CowDarkOnPrimaryContainer,
   secondary = CowDarkSecondary,
-  onSecondary = Color(0xFF3E3300),
+  onSecondary = Color(0xFF2B2100),
   secondaryContainer = CowDarkSecondaryContainer,
   onSecondaryContainer = CowDarkOnSecondaryContainer,
+  tertiary = CowDarkTertiary,
   background = CowDarkBackground,
   onBackground = CowDarkOnSurface,
   surface = CowDarkSurface,
@@ -49,7 +49,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun HelloCowCowTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
+  darkTheme: Boolean = true,
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit
 ) {
