@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,15 +40,25 @@ internal fun PortfolioNftGrid(
   onNftClick: (String) -> Unit
 ) {
   var query by rememberSaveable { mutableStateOf("") }
+  var sortByRank by rememberSaveable { mutableStateOf(false) }
   val normalizedQuery = query.trim().lowercase()
-  val filteredNfts = remember(nfts, normalizedQuery) {
-    if (normalizedQuery.isBlank()) {
+  val visibleNfts = remember(nfts, normalizedQuery, sortByRank) {
+    val filtered = if (normalizedQuery.isBlank()) {
       nfts
     } else {
       nfts.filter { nft ->
         nft.name.orEmpty().lowercase().contains(normalizedQuery) ||
             nft.identifier.orEmpty().lowercase().contains(normalizedQuery)
       }
+    }
+
+    if (sortByRank) {
+      filtered.sortedWith(
+        compareBy<DomainNft> { it.metadata?.rarity?.rank ?: Int.MAX_VALUE }
+          .thenBy { it.name.orEmpty() }
+      )
+    } else {
+      filtered
     }
   }
 
@@ -84,16 +96,30 @@ internal fun PortfolioNftGrid(
         }
       )
 
-      if (normalizedQuery.isNotBlank()) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
         Text(
-          text = "${filteredNfts.size} result${if (filteredNfts.size == 1) "" else "s"}",
+          text = if (normalizedQuery.isBlank()) {
+            "${visibleNfts.size} visible"
+          } else {
+            "${visibleNfts.size} result${if (visibleNfts.size == 1) "" else "s"}"
+          },
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        FilterChip(
+          selected = sortByRank,
+          onClick = { sortByRank = !sortByRank },
+          label = { Text("Best rank") }
         )
       }
     }
 
-    if (filteredNfts.isEmpty()) {
+    if (visibleNfts.isEmpty()) {
       EmptyPortfolioState(
         if (normalizedQuery.isBlank()) {
           "No CowCow available"
@@ -111,7 +137,7 @@ internal fun PortfolioNftGrid(
       horizontalArrangement = Arrangement.spacedBy(12.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-      items(filteredNfts, key = { it.identifier.orEmpty() }) { nft ->
+      items(visibleNfts, key = { it.identifier.orEmpty() }) { nft ->
         NftCard(nft = nft) {
           nft.identifier?.let(onNftClick)
         }
