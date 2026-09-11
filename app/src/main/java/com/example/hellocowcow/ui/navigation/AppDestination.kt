@@ -14,3 +14,8 @@ data object CollectionDestination : AppDestination
 
 @Serializable
 data object PortfolioDestination : AppDestination
+
+@Serializable
+data class NftDetailDestination(
+  val identifier: String
+) : AppDestination

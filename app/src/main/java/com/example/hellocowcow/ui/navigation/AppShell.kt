@@ -27,10 +27,12 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.example.hellocowcow.ui.screen.home.HomeScreen
+import com.example.hellocowcow.ui.screen.nft.NftScreen
 import com.example.hellocowcow.ui.screen.portfolio.ConnectWalletScreen
 import com.example.hellocowcow.ui.screen.profile.ProfileScreen
 import com.example.hellocowcow.ui.screen.stats.StatsScreen
 import com.example.hellocowcow.ui.viewmodels.activity.MainViewModel
+import com.example.hellocowcow.ui.viewmodels.screen.nft.NftViewModel
 
 private data class TopLevelItem(
   val destination: AppDestination,
@@ -43,6 +45,8 @@ private val topLevelItems = listOf(
   TopLevelItem(CollectionDestination, "Collection", Icons.Filled.QueryStats),
   TopLevelItem(PortfolioDestination, "Portfolio", Icons.Filled.Person)
 )
+
+private val topLevelDestinations = topLevelItems.map { it.destination }.toSet()
 
 @Composable
 fun AppShell(
@@ -63,21 +67,29 @@ fun AppShell(
     }
   }
 
+  fun openNft(identifier: String) {
+    if (identifier.isNotBlank()) {
+      backStack.add(NftDetailDestination(identifier))
+    }
+  }
+
   Scaffold(
     bottomBar = {
-      NavigationBar {
-        topLevelItems.forEach { item ->
-          NavigationBarItem(
-            selected = currentDestination == item.destination,
-            onClick = { navigateTopLevel(item.destination) },
-            icon = {
-              androidx.compose.material3.Icon(
-                imageVector = item.icon,
-                contentDescription = item.label
-              )
-            },
-            label = { Text(item.label) }
-          )
+      if (currentDestination in topLevelDestinations) {
+        NavigationBar {
+          topLevelItems.forEach { item ->
+            NavigationBarItem(
+              selected = currentDestination == item.destination,
+              onClick = { navigateTopLevel(item.destination) },
+              icon = {
+                androidx.compose.material3.Icon(
+                  imageVector = item.icon,
+                  contentDescription = item.label
+                )
+              },
+              label = { Text(item.label) }
+            )
+          }
         }
       }
     }
@@ -115,7 +127,16 @@ fun AppShell(
           PortfolioContent(
             walletState = walletState,
             onConnectWallet = onConnectWallet,
-            onRetryWallet = onRetryWallet
+            onRetryWallet = onRetryWallet,
+            onNftClick = ::openNft
+          )
+        }
+
+        entry<NftDetailDestination> { destination ->
+          NftScreen(
+            identifier = destination.identifier,
+            viewModel = hiltViewModel<NftViewModel>(),
+            onBack = { backStack.removeLastOrNull() }
           )
         }
       }
@@ -127,7 +148,8 @@ fun AppShell(
 private fun PortfolioContent(
   walletState: MainViewModel.WalletUiState,
   onConnectWallet: () -> Unit,
-  onRetryWallet: () -> Unit
+  onRetryWallet: () -> Unit,
+  onNftClick: (String) -> Unit
 ) {
   when (walletState) {
     MainViewModel.WalletUiState.CheckingSession,
@@ -146,7 +168,8 @@ private fun PortfolioContent(
     is MainViewModel.WalletUiState.Connected -> ProfileScreen(
       account = walletState.account,
       topic = walletState.topic,
-      viewModel = hiltViewModel()
+      viewModel = hiltViewModel(),
+      onNftClick = onNftClick
     )
 
     is MainViewModel.WalletUiState.Error -> ConnectWalletScreen(

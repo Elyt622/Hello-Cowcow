@@ -42,7 +42,8 @@ import com.example.hellocowcow.ui.viewmodels.screen.profile.WalletViewModel
 fun ProfileScreen(
   account: DomainAccount,
   topic: String,
-  viewModel: ProfileViewModel
+  viewModel: ProfileViewModel,
+  onNftClick: (String) -> Unit
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val uiStateTx by viewModel.uiStateTx.collectAsStateWithLifecycle()
@@ -64,13 +65,13 @@ fun ProfileScreen(
         color = MaterialTheme.colorScheme.onPrimary,
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier
-          .weight(1.0F)
+          .weight(1f)
           .padding(start = 12.dp),
       )
 
       Button(
         modifier = Modifier
-          .weight(1.0F)
+          .weight(1f)
           .padding(end = 16.dp),
         colors = ButtonDefaults.buttonColors(
           contentColor = MaterialTheme.colorScheme.background,
@@ -156,12 +157,18 @@ fun ProfileScreen(
       )
     }
 
-    TabScreen(account)
+    ProfileTabs(
+      account = account,
+      onNftClick = onNftClick
+    )
   }
 }
 
 @Composable
-fun TabScreen(account: DomainAccount) {
+private fun ProfileTabs(
+  account: DomainAccount,
+  onNftClick: (String) -> Unit
+) {
   var tabIndex by remember { mutableIntStateOf(0) }
   val tabs = listOf("Wallet", "Staked", "Market")
 
@@ -181,24 +188,25 @@ fun TabScreen(account: DomainAccount) {
         )
       }
     }
+
     when (tabIndex) {
-      0 -> {
-        val viewModel: WalletViewModel = hiltViewModel()
-        viewModel.setAddress(account.address)
-        WalletScreen(viewModel)
-      }
+      0 -> WalletScreen(
+        viewModel = hiltViewModel<WalletViewModel>(),
+        address = account.address,
+        onNftClick = onNftClick
+      )
 
-      1 -> {
-        val viewModel: StakeViewModel = hiltViewModel()
-        viewModel.setAddress(account.address)
-        StakeScreen(viewModel)
-      }
+      1 -> StakeScreen(
+        viewModel = hiltViewModel<StakeViewModel>(),
+        address = account.address,
+        onNftClick = onNftClick
+      )
 
-      2 -> {
-        val viewModel: MarketViewModel = hiltViewModel()
-        viewModel.setAddress(account.address)
-        MarketScreen(viewModel)
-      }
+      2 -> MarketScreen(
+        viewModel = hiltViewModel<MarketViewModel>(),
+        address = account.address,
+        onNftClick = onNftClick
+      )
     }
   }
 }
