@@ -27,13 +27,13 @@ For the temporary MOOVE amount, Recovery requests live xExchange quotes for:
 2. fixed-input `MOOVE -> EGLD` expected sell-back;
 3. minimum sell-back at the configured tolerance.
 
-The UI separates:
+The cost model separates:
 
 - temporary EGLD capital;
 - expected DEX friction;
 - worst-case DEX friction;
-- MultiversX top-up fee;
-- MultiversX `claimRewards` fee;
+- simulated MultiversX top-up / `claimRewards` fees;
+- maximum fees implied by the gas limits actually signed;
 - expected claim-cycle loss;
 - worst-case claim-cycle loss.
 
@@ -41,12 +41,29 @@ Claimed rewards are shown separately and are never counted as a recovery cost.
 
 ## Network fees
 
-Top-up and `claimRewards` fees use the official read-only MultiversX transaction-cost endpoint when available. Gas units are converted to EGLD with current network parameters and the gas-price modifier.
+Top-up and `claimRewards` use the official read-only MultiversX `transaction/cost` endpoint when available. The returned gas-unit estimate is converted to EGLD using the live network configuration and the official split between full-price movement/data gas and gas-price-modified contract execution.
 
-If live transaction-cost simulation is unavailable, the configured transaction gas limit is used as a conservative fallback and the UI labels the estimate accordingly.
+Recovery keeps two network-fee bounds for every planned transaction:
+
+- `feeEgld`: the simulated fee using `txGasUnits` from the read-only cost endpoint;
+- `maxFeeEgld`: the fee corresponding to the transaction's configured `gasLimit` if that full limit is charged.
+
+The expected Recovery loss uses the simulated network fees. The worst-case Recovery loss uses the gas-limit ceilings.
+
+This distinction is grounded in the historical CowCow transactions supplied as protocol evidence. With a 1% execution gas-price modifier, the gas-limit ceiling formula exactly reproduces the Explorer fees for:
+
+- final `claim@0788@0eb2@267e@0fde`, gas limit `270,000,000`: `0.002786625 EGLD`;
+- `unstake@0788@0eb2@267e@0fde`, gas limit `315,000,000`: `0.003239595 EGLD`;
+- historical `claimRewards`, gas limit `600,000,000`: `0.00606732 EGLD`.
+
+If live transaction-cost simulation is unavailable, the configured gas limit becomes both the expected fallback and the maximum fee bound.
 
 The current claim-cycle estimate intentionally keeps the following separate until their write builders are enabled in Recovery:
 
 - xExchange transaction gas;
 - `unstake` network fee;
 - final CowCow `claim@<nonce>...` network fee.
+
+## Known xExchange tolerance follow-up
+
+The current worst-case sell-return calculation applies tolerance conservatively as `output * (1 - tolerance)`. The official `@multiversx/sdk-dapp-swap` implementation for a fixed-input swap uses `output / (1 + tolerance)` before rounding to atomic units. At a 1% tolerance the current implementation is slightly more pessimistic; it should be aligned with the official SDK before the DEX worst-case figure is considered exact.
