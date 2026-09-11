@@ -12,6 +12,7 @@ import com.example.hellocowcow.domain.models.MvxTransaction
 import com.example.hellocowcow.domain.repositories.RewardsRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
 import com.example.hellocowcow.domain.transactions.ClaimTransactionFactory
+import com.example.hellocowcow.domain.transactions.TransactionTracker
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,6 +25,7 @@ import javax.inject.Inject
 class ProfileViewModel @Inject constructor(
   private val rewardsRepository: RewardsRepository,
   private val transactionRepository: TransactionRepository,
+  private val transactionTracker: TransactionTracker,
   private val walletClient: WalletClient
 ) : ViewModel() {
 
@@ -42,7 +44,10 @@ class ProfileViewModel @Inject constructor(
     data object NoData : UiStateTx()
     data object AwaitingSignature : UiStateTx()
     data object Broadcasting : UiStateTx()
-    data class Send(val tx: DomainTransaction) : UiStateTx()
+    data class Pending(val tx: DomainTransaction) : UiStateTx()
+    data class Confirmed(val tx: DomainTransaction) : UiStateTx()
+    data class Failed(val tx: DomainTransaction, val reason: String?) : UiStateTx()
+    data class ConfirmationTimedOut(val tx: DomainTransaction) : UiStateTx()
     data class Error(val error: String) : UiStateTx()
   }
 
@@ -169,9 +174,36 @@ class ProfileViewModel @Inject constructor(
         transactionRepository.sendTransaction(transaction)
       }.onSuccess { tx ->
         clearPendingClaim()
-        _uiStateTx.value = UiStateTx.Send(tx)
+        trackBroadcastTransaction(tx)
       }.onFailure { error ->
         failClaim(error.message ?: "Unable to broadcast transaction")
+      }
+    }
+  }
+
+  private suspend fun trackBroadcastTransaction(tx: DomainTransaction) {
+    val txHash = tx.txHash
+    if (txHash.isNullOrBlank()) {
+      _uiStateTx.value = UiStateTx.Error("MultiversX did not return a transaction hash")
+      return
+    }
+
+    _uiStateTx.value = UiStateTx.Pending(tx)
+
+    when (val result = transactionTracker.awaitFinalStatus(txHash)) {
+      is TransactionTracker.Result.Confirmed -> {
+        _uiStateTx.value = UiStateTx.Confirmed(tx)
+      }
+
+      is TransactionTracker.Result.Failed -> {
+        _uiStateTx.value = UiStateTx.Failed(
+          tx = tx,
+          reason = result.status.reason
+        )
+      }
+
+      is TransactionTracker.Result.TimedOut -> {
+        _uiStateTx.value = UiStateTx.ConfirmationTimedOut(tx)
       }
     }
   }
