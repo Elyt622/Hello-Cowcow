@@ -4,6 +4,7 @@ import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.data.retrofit.mvxApi.response.Transactions
 import com.example.hellocowcow.domain.recovery.RecoveryEvidence
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -71,6 +72,47 @@ class RecoveryHistoryMatcherTest {
     ).single()
 
     assertEquals(listOf("0eb2", "0fde"), batch.cowNonces)
+  }
+
+  @Test
+  fun `malformed successful unstake fails closed instead of disappearing`() {
+    val malformed = transaction(
+      hash = "malformed-unstake",
+      timestamp = 1_783_949_916,
+      data = "unstake@1"
+    )
+
+    val error = assertThrows(IllegalArgumentException::class.java) {
+      RecoveryHistoryMatcher.pendingBatches(
+        unstakeTransactions = listOf(malformed),
+        finalClaimTransactions = emptyList()
+      )
+    }
+
+    assertTrue(error.message.orEmpty().contains("Unable to decode CowCow unstake"))
+  }
+
+  @Test
+  fun `malformed successful final claim fails closed`() {
+    val unstake = transaction(
+      hash = "unstake-hash",
+      timestamp = 1_783_949_916,
+      data = "unstake@0788"
+    )
+    val malformedClaim = transaction(
+      hash = "malformed-claim",
+      timestamp = 1_784_557_524,
+      data = "claim@xyz"
+    )
+
+    val error = assertThrows(IllegalArgumentException::class.java) {
+      RecoveryHistoryMatcher.pendingBatches(
+        unstakeTransactions = listOf(unstake),
+        finalClaimTransactions = listOf(malformedClaim)
+      )
+    }
+
+    assertTrue(error.message.orEmpty().contains("Unable to decode CowCow claim"))
   }
 
   private fun transaction(
