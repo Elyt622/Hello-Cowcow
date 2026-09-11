@@ -22,7 +22,14 @@ class App : Application() {
       Timber.plant(Timber.DebugTree())
     }
 
-    val projectId = resources.getString(R.string.wallet_connect_id)
+    val projectId = resources.getString(R.string.wallet_connect_id).trim()
+    if (projectId.isBlank()) {
+      Timber.tag("Reown_Config_Error").e(
+        "Missing Reown project id. Add wallet.connect.id=<PROJECT_ID> to local.properties before using xPortal."
+      )
+      return
+    }
+
     val connectionType = ConnectionType.AUTOMATIC
     val appMetaData = Core.Model.AppMetaData(
       name = "Hello CowCow",
