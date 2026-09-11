@@ -19,7 +19,7 @@ import org.junit.Test
 class TransactionCostRepositoryImplTest {
 
   @Test
-  fun `uses simulated gas and network modifier to calculate fee`() = runTest {
+  fun `uses simulated gas and keeps signed gas limit as fee ceiling`() = runTest {
     val api = FakeGatewayApi(
       gasUnits = 300_000L,
       modifier = BigDecimal("0.01")
@@ -41,9 +41,12 @@ class TransactionCostRepositoryImplTest {
     val estimate = repository.estimateFee(transaction)
 
     // movement gas = 50,000 + 12 * 1,500 = 68,000
-    // execution gas = 232,000; execution is charged at 1% modifier.
+    // simulated execution gas = 232,000; execution is charged at 1% modifier.
     assertEquals(0, estimate.feeEgld.compareTo(BigDecimal("0.00007032")))
+    // If the signed 30M gas limit is fully charged, the same formula gives this ceiling.
+    assertEquals(0, estimate.maxFeeEgld.compareTo(BigDecimal("0.00036732")))
     assertEquals(300_000L, estimate.gasUnits)
+    assertEquals(30_000_000L, estimate.gasLimit)
     assertTrue(estimate.simulated)
   }
 
@@ -69,8 +72,48 @@ class TransactionCostRepositoryImplTest {
     val estimate = repository.estimateFee(transaction)
 
     assertEquals(500_000L, estimate.gasUnits)
+    assertEquals(500_000L, estimate.gasLimit)
+    assertEquals(0, estimate.feeEgld.compareTo(estimate.maxFeeEgld))
     assertFalse(estimate.simulated)
     assertTrue(estimate.feeEgld > BigDecimal.ZERO)
+  }
+
+  @Test
+  fun `gas limit ceilings reproduce verified CowCow Explorer fees`() = runTest {
+    val repository = TransactionCostRepositoryImpl(
+      FakeGatewayApi(
+        gasUnits = 1_000_000L,
+        modifier = BigDecimal("0.01")
+      )
+    )
+
+    val cases = listOf(
+      Triple("claim@0788@0eb2@267e@0fde", 270_000_000L, BigDecimal("0.002786625")),
+      Triple("unstake@0788@0eb2@267e@0fde", 315_000_000L, BigDecimal("0.003239595")),
+      Triple("claimRewards", 600_000_000L, BigDecimal("0.00606732"))
+    )
+
+    cases.forEach { (payload, gasLimit, explorerFee) ->
+      val transaction = MvxTransaction(
+        nonce = 1,
+        value = "0",
+        receiver = "erd1contract",
+        sender = "erd1sender",
+        gasPrice = 1_000_000_000L,
+        gasLimit = gasLimit,
+        data = Base64.getEncoder().encodeToString(payload.toByteArray()),
+        chainID = "1",
+        version = 1
+      )
+
+      val estimate = repository.estimateFee(transaction)
+
+      assertEquals(
+        "Fee ceiling mismatch for $payload",
+        0,
+        estimate.maxFeeEgld.compareTo(explorerFee)
+      )
+    }
   }
 
   private class FakeGatewayApi(
