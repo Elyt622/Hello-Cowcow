@@ -165,7 +165,8 @@ private fun RecoveryDiagnostic(
   val readyToFund = snapshot.amountToAcquire.compareTo(BigDecimal.ZERO) == 0 &&
       snapshot.recommendedTopUp > BigDecimal.ZERO
   val transactionBusy = transactionState is RecoveryViewModel.TransactionUiState.AwaitingSignature ||
-      transactionState is RecoveryViewModel.TransactionUiState.Broadcasting
+      transactionState is RecoveryViewModel.TransactionUiState.Broadcasting ||
+      transactionState is RecoveryViewModel.TransactionUiState.Pending
 
   StatusCard(
     ready = readyToFund,
@@ -268,21 +269,29 @@ private fun TopUpActionCard(
       when (transactionState) {
         RecoveryViewModel.TransactionUiState.AwaitingSignature -> TransactionStatus("Confirm the MOOVE transfer in xPortal")
         RecoveryViewModel.TransactionUiState.Broadcasting -> TransactionStatus("Broadcasting the MOOVE transfer…", loading = true)
-        is RecoveryViewModel.TransactionUiState.Success -> {
-          Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-          ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-              Text("Contract funded", style = MaterialTheme.typography.titleMedium)
-              transactionState.transaction.txHash?.let { hash ->
-                Text(
-                  "${hash.take(10)}…${hash.takeLast(8)}",
-                  style = MaterialTheme.typography.bodySmall
-                )
-              }
-            }
-          }
+        is RecoveryViewModel.TransactionUiState.Pending -> TransactionStatus("Waiting for on-chain confirmation…", loading = true)
+        is RecoveryViewModel.TransactionUiState.Confirmed -> {
+          TransactionResultCard(
+            title = "Contract funding confirmed",
+            hash = transactionState.transaction.txHash,
+            success = true
+          )
+        }
+        is RecoveryViewModel.TransactionUiState.Failed -> {
+          TransactionResultCard(
+            title = "Contract funding failed",
+            hash = transactionState.transaction.txHash,
+            detail = transactionState.reason?.takeIf { it.isNotBlank() },
+            success = false
+          )
+        }
+        is RecoveryViewModel.TransactionUiState.ConfirmationTimedOut -> {
+          TransactionResultCard(
+            title = "Funding broadcasted",
+            hash = transactionState.transaction.txHash,
+            detail = "Final confirmation was not obtained in time. Check Explorer before continuing.",
+            success = null
+          )
         }
         is RecoveryViewModel.TransactionUiState.Error -> {
           Card(
@@ -298,10 +307,10 @@ private fun TopUpActionCard(
         RecoveryViewModel.TransactionUiState.Idle -> Unit
       }
 
+      val completed = transactionState is RecoveryViewModel.TransactionUiState.Confirmed
       Button(
         onClick = onFundContract,
-        enabled = readyToFund && !transactionBusy &&
-            transactionState !is RecoveryViewModel.TransactionUiState.Success,
+        enabled = readyToFund && !transactionBusy && !completed,
         modifier = Modifier.fillMaxWidth()
       ) {
         Text(
@@ -310,6 +319,47 @@ private fun TopUpActionCard(
           } else {
             "Send MOOVE to contract"
           }
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun TransactionResultCard(
+  title: String,
+  hash: String?,
+  detail: String? = null,
+  success: Boolean?
+) {
+  val containerColor = when (success) {
+    true -> MaterialTheme.colorScheme.secondaryContainer
+    false -> MaterialTheme.colorScheme.errorContainer
+    null -> MaterialTheme.colorScheme.primaryContainer
+  }
+  val contentColor = when (success) {
+    true -> MaterialTheme.colorScheme.onSecondaryContainer
+    false -> MaterialTheme.colorScheme.onErrorContainer
+    null -> MaterialTheme.colorScheme.onPrimaryContainer
+  }
+
+  Card(
+    shape = RoundedCornerShape(12.dp),
+    colors = CardDefaults.cardColors(containerColor = containerColor)
+  ) {
+    Column(
+      modifier = Modifier.padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+      Text(title, style = MaterialTheme.typography.titleMedium, color = contentColor)
+      detail?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = contentColor)
+      }
+      hash?.let {
+        Text(
+          "${it.take(10)}…${it.takeLast(8)}",
+          style = MaterialTheme.typography.bodySmall,
+          color = contentColor.copy(alpha = 0.78f)
         )
       }
     }
