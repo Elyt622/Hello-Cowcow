@@ -8,7 +8,7 @@ import org.junit.Test
 class CowCowUserDataDecoderTest {
 
   @Test
-  fun `preserves four digit CowCow nonce encoding`() {
+  fun `preserves two-byte CowCow nonces used by verified exit history`() {
     val bytes = byteArrayOf(
       0x00, 0x04,
       0x07, 0x88.toByte(),
@@ -21,6 +21,21 @@ class CowCowUserDataDecoderTest {
 
     assertEquals(
       listOf("0788", "0eb2", "267e", "0fde"),
+      CowCowUserDataDecoder.decodeStakedCowNonces(encoded)
+    )
+  }
+
+  @Test
+  fun `normalizes legacy fixed-width low nonce to minimal hex bytes`() {
+    val bytes = byteArrayOf(
+      0x00, 0x02,
+      0x00, 0x01,
+      0x00, 0xff.toByte()
+    )
+    val encoded = Base64.getEncoder().encodeToString(bytes)
+
+    assertEquals(
+      listOf("01", "ff"),
       CowCowUserDataDecoder.decodeStakedCowNonces(encoded)
     )
   }
