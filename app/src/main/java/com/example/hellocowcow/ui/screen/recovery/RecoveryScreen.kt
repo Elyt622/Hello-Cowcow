@@ -54,6 +54,7 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 
 private const val XEXCHANGE_TRADE_URL = "https://xexchange.com/trade"
+private val MOOVE_DISPLAY_EPSILON = BigDecimal("0.0001")
 
 @Composable
 fun RecoveryScreen(
@@ -139,7 +140,7 @@ private fun RecoveryHeader() {
       color = MaterialTheme.colorScheme.onBackground
     )
     Text(
-      text = "Recover MOOVE first, then follow CowCow exit state reconstructed from verified mainnet history.",
+      text = "Recover MOOVE first, then move through the verified CowCow exit state.",
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -178,7 +179,7 @@ private fun RecoveryDiagnostic(
     WarningCard(warning)
   }
 
-  RecoveryMetrics(snapshot)
+  RecoverySummaryCard(snapshot)
   RecoveryCostCard(snapshot, costState)
 
   ClaimFirstActions(
@@ -194,13 +195,13 @@ private fun RecoveryDiagnostic(
     onDismissError = onDismissError
   )
 
-  UnstakeProtocolPreview(snapshot)
-
   ExitStateCard(
     snapshot = snapshot,
     pendingBatches = state.pendingUnbondBatches,
     nowEpochSeconds = nowEpochSeconds
   )
+
+  ProtocolDetailsCard(snapshot)
 }
 
 @Composable
@@ -209,14 +210,19 @@ private fun RecoveryOverviewCard(
   pendingBatches: List<RecoveryUnbondBatch>
 ) {
   val pendingCowCount = pendingBatches.sumOf { it.cowNonces.size }
+  val claimComplete = isClaimFirstComplete(snapshot)
+  val stakedCount = snapshot.stakedCowNonces.size
+
   val title = when {
     pendingCowCount > 0 -> "$pendingCowCount CowCow${if (pendingCowCount == 1) "" else "s"} unbonding"
-    snapshot.stakedCowNonces.isNotEmpty() -> "${snapshot.stakedCowNonces.size} CowCows still staked"
+    stakedCount > 0 && claimComplete -> "$stakedCount CowCows ready for exit"
+    stakedCount > 0 -> "$stakedCount CowCows still staked"
     else -> "No staked CowCows detected"
   }
   val detail = when {
-    pendingCowCount > 0 -> "Recovery state was rebuilt from successful MultiversX unstake/claim transactions."
-    snapshot.stakedCowNonces.isNotEmpty() -> "Claim the old MOOVE rewards first, then the verified unstake path can be used."
+    pendingCowCount > 0 -> "Exit started · waiting for the conservative claim threshold."
+    stakedCount > 0 && claimComplete -> "Rewards cleared · claim liquidity settled · read-only unstake verification available."
+    stakedCount > 0 -> "Finish the claim-first steps before moving to the verified unstake path."
     else -> "There is no active CowCow stake visible in the contract response."
   }
 
@@ -231,7 +237,14 @@ private fun RecoveryOverviewCard(
       horizontalArrangement = Arrangement.spacedBy(10.dp),
       verticalAlignment = Alignment.CenterVertically
     ) {
-      Icon(Icons.Filled.CheckCircle, contentDescription = null)
+      Icon(
+        imageVector = if (claimComplete || pendingCowCount > 0) {
+          Icons.Filled.CheckCircle
+        } else {
+          Icons.Filled.Schedule
+        },
+        contentDescription = null
+      )
       Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Text(detail, style = MaterialTheme.typography.bodySmall)
@@ -241,24 +254,156 @@ private fun RecoveryOverviewCard(
 }
 
 @Composable
-private fun RecoveryMetrics(snapshot: RecoverySnapshot) {
-  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    MetricRow("Rewards to claim", snapshot.claimableRewards, "MOOVE")
-    MetricRow(
-      "Contract liquidity",
-      snapshot.contractMooveBalance,
-      "MOOVE",
-      note = "Live balance · rechecked again before signing"
+private fun RecoverySummaryCard(snapshot: RecoverySnapshot) {
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(16.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant
+  ) {
+    Column(
+      modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+      verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+      Text("Recovery snapshot", style = MaterialTheme.typography.titleMedium)
+      SummaryRow("Rewards to claim", "${formatMoove(snapshot.claimableRewards)} MOOVE")
+      SummaryRow(
+        "Contract liquidity",
+        "${formatMoove(snapshot.contractMooveBalance)} MOOVE",
+        note = "Live balance · rechecked before signing"
+      )
+      SummaryRow("Claim liquidity gap", "${formatMoove(snapshot.claimLiquidityGap)} MOOVE")
+      SummaryRow("Your MOOVE balance", "${formatMoove(snapshot.walletMooveBalance)} MOOVE")
+      SummaryRow(
+        "Temporary MOOVE to buy",
+        "${formatMoove(snapshot.amountToAcquire)} MOOVE",
+        emphasize = snapshot.amountToAcquire > BigDecimal.ZERO,
+        note = if (snapshot.amountToAcquire > BigDecimal.ZERO) {
+          "Only this amount is temporary external recovery capital"
+        } else {
+          "No temporary external capital required"
+        }
+      )
+    }
+  }
+}
+
+@Composable
+private fun SummaryRow(
+  label: String,
+  value: String,
+  emphasize: Boolean = false,
+  note: String? = null
+) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Column(modifier = Modifier.weight(1f)) {
+      Text(
+        text = label,
+        style = MaterialTheme.typography.labelMedium,
+        color = if (emphasize) {
+          MaterialTheme.colorScheme.primary
+        } else {
+          MaterialTheme.colorScheme.onSurfaceVariant
+        }
+      )
+      note?.let {
+        Text(
+          text = it,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
+    }
+    Text(
+      text = value,
+      style = MaterialTheme.typography.titleSmall,
+      color = if (emphasize) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     )
-    MetricRow("Claim liquidity gap", snapshot.claimLiquidityGap, "MOOVE")
-    MetricRow("Your MOOVE balance", snapshot.walletMooveBalance, "MOOVE")
-    MetricRow(
-      "Temporary MOOVE to buy",
-      snapshot.amountToAcquire,
-      "MOOVE",
-      emphasize = true,
-      note = "Only this temporary purchase is treated as external recovery capital"
-    )
+  }
+}
+
+@Composable
+private fun RecoveryCostCard(
+  snapshot: RecoverySnapshot,
+  costState: RecoveryViewModel.CostUiState
+) {
+  val claimCycleComplete = isClaimFirstComplete(snapshot)
+  if (claimCycleComplete && snapshot.amountToAcquire <= BigDecimal.ZERO) {
+    Surface(
+      modifier = Modifier.fillMaxWidth(),
+      shape = RoundedCornerShape(16.dp),
+      color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+      Column(
+        modifier = Modifier.padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+      ) {
+        Text("Recovery cost", style = MaterialTheme.typography.titleMedium)
+        StatusLine(
+          icon = Icons.Filled.CheckCircle,
+          title = "No temporary MOOVE purchase required",
+          detail = "Unstake network fee is not estimated yet."
+        )
+      }
+    }
+    return
+  }
+
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(16.dp),
+    color = if (snapshot.amountToAcquire > BigDecimal.ZERO) {
+      MaterialTheme.colorScheme.primaryContainer
+    } else {
+      MaterialTheme.colorScheme.surfaceVariant
+    },
+    contentColor = if (snapshot.amountToAcquire > BigDecimal.ZERO) {
+      MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+      MaterialTheme.colorScheme.onSurface
+    }
+  ) {
+    Column(
+      modifier = Modifier.padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+      Text("Recovery cost", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+      when (val state = costState) {
+        RecoveryViewModel.CostUiState.Loading -> TransactionStatus(
+          "Quoting xExchange and simulating claim-cycle fees…",
+          loading = true
+        )
+        is RecoveryViewModel.CostUiState.Unavailable -> Text(
+          "Live claim-cycle estimate is unavailable right now. Network fees are rechecked before signing.",
+          style = MaterialTheme.typography.bodySmall
+        )
+        is RecoveryViewModel.CostUiState.Success -> {
+          state.quote?.let { quote ->
+            RecoveryQuoteRow("Temporary capital", "${formatEgld(quote.buyCostEgld)} EGLD")
+            RecoveryQuoteRow("Expected sell-back", "${formatEgld(quote.expectedSellReturnEgld)} EGLD")
+            RecoveryQuoteRow("Expected DEX friction", "${formatEgld(state.estimate.expectedDexLossEgld)} EGLD")
+            RecoveryQuoteRow("Worst-case DEX friction", "${formatEgld(state.estimate.worstCaseDexLossEgld)} EGLD")
+          }
+          state.networkFees.topUp?.let { fee ->
+            RecoveryQuoteRow("Top-up network fee", "${formatEgld(fee.feeEgld)} EGLD")
+          }
+          RecoveryQuoteRow("claimRewards network fee", "${formatEgld(state.networkFees.claim.feeEgld)} EGLD")
+          RecoveryQuoteRow("Expected claim-cycle loss", "${formatEgld(state.estimate.expectedTotalLossEgld)} EGLD")
+          RecoveryQuoteRow("Worst-case claim-cycle loss", "${formatEgld(state.estimate.worstCaseTotalLossEgld)} EGLD")
+          state.quote?.let {
+            RecoveryQuoteRow("Temporary capital recovered", formatPercent(state.estimate.expectedRecoveryRatio))
+          }
+          Text(
+            "Accrued MOOVE rewards are recovered value, not recovery loss. Exit-call fees stay separate until those builders are enabled.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        }
+      }
+    }
   }
 }
 
@@ -273,6 +418,7 @@ private fun ClaimFirstActions(
   val walletCoversTopUp = snapshot.walletMooveBalance >= snapshot.recommendedTopUp
   val claimReady = snapshot.claimableRewards > BigDecimal.ZERO &&
       snapshot.claimLiquidityGap.compareTo(BigDecimal.ZERO) == 0
+  val complete = isClaimFirstComplete(snapshot)
 
   Surface(
     modifier = Modifier.fillMaxWidth(),
@@ -283,13 +429,17 @@ private fun ClaimFirstActions(
       modifier = Modifier.padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-      Text("Claim-first path", style = MaterialTheme.typography.titleLarge)
+      Text(
+        if (complete) "Claim-first complete" else "Claim-first path",
+        style = MaterialTheme.typography.titleLarge
+      )
 
-      RecoveryStep(
+      RecoveryStage(
         number = 1,
-        title = if (snapshot.amountToAcquire > BigDecimal.ZERO) "Buy temporary MOOVE" else "Temporary liquidity",
+        complete = snapshot.amountToAcquire <= BigDecimal.ZERO,
+        title = "Temporary liquidity",
         detail = if (snapshot.amountToAcquire > BigDecimal.ZERO) {
-          "Buy about ${formatMoove(snapshot.amountToAcquire)} MOOVE. The quote below estimates the round-trip friction."
+          "Buy about ${formatMoove(snapshot.amountToAcquire)} MOOVE before restoring contract liquidity."
         } else {
           "No external MOOVE purchase is required at the current balances."
         }
@@ -304,13 +454,14 @@ private fun ClaimFirstActions(
         }
       }
 
-      RecoveryStep(
+      RecoveryStage(
         number = 2,
-        title = "Restore contract liquidity",
+        complete = snapshot.recommendedTopUp <= BigDecimal.ZERO,
+        title = "Contract liquidity",
         detail = if (snapshot.recommendedTopUp > BigDecimal.ZERO) {
-          "The CowCow contract currently needs ${formatMoove(snapshot.recommendedTopUp)} MOOVE to honor your pending claim."
+          "The CowCow contract needs ${formatMoove(snapshot.recommendedTopUp)} MOOVE for the pending reward claim."
         } else {
-          "The contract already has enough MOOVE for the current claim."
+          "Contract liquidity is sufficient for the current claim state."
         }
       )
       if (snapshot.recommendedTopUp > BigDecimal.ZERO) {
@@ -329,34 +480,38 @@ private fun ClaimFirstActions(
         }
       }
 
-      RecoveryStep(
+      RecoveryStage(
         number = 3,
+        complete = snapshot.claimableRewards <= BigDecimal.ZERO,
         title = "Claim MOOVE rewards",
         detail = if (snapshot.claimableRewards > BigDecimal.ZERO) {
-          "claimRewards is verified on mainnet. It returns MOOVE without returning the CowCow NFTs."
+          "claimRewards is verified on mainnet and returns MOOVE without returning the CowCow NFTs."
         } else {
-          "No pending MOOVE reward is currently reported by the CowCow contract."
+          "No pending MOOVE reward is currently reported."
         }
       )
-      Button(
-        onClick = onClaimRewards,
-        enabled = claimReady && !transactionBusy,
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        Text(
-          when {
-            snapshot.claimableRewards <= BigDecimal.ZERO -> "No rewards to claim"
-            snapshot.claimLiquidityGap > BigDecimal.ZERO -> "Restore liquidity before claiming"
-            else -> "Claim ${formatMoove(snapshot.claimableRewards)} MOOVE"
-          }
-        )
+      if (snapshot.claimableRewards > BigDecimal.ZERO) {
+        Button(
+          onClick = onClaimRewards,
+          enabled = claimReady && !transactionBusy,
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Text(
+            if (snapshot.claimLiquidityGap > BigDecimal.ZERO) {
+              "Restore liquidity before claiming"
+            } else {
+              "Claim ${formatMoove(snapshot.claimableRewards)} MOOVE"
+            }
+          )
+        }
       }
 
       if (snapshot.amountToAcquire > BigDecimal.ZERO) {
-        RecoveryStep(
+        RecoveryStage(
           number = 4,
+          complete = false,
           title = "Sell temporary MOOVE",
-          detail = "After the claim confirms, swap back the temporary MOOVE bought for this recovery. Your accrued rewards remain recovered value, not a recovery cost."
+          detail = "After claim confirmation, swap the temporary recovery capital back."
         )
         OutlinedButton(
           onClick = { uriHandler.openUri(XEXCHANGE_TRADE_URL) },
@@ -365,11 +520,13 @@ private fun ClaimFirstActions(
           Icon(Icons.Filled.OpenInNew, contentDescription = null)
           Text("Open xExchange", modifier = Modifier.padding(start = 8.dp))
         }
-      } else {
-        RecoveryStep(
-          number = 4,
-          title = "No temporary swap to unwind",
-          detail = "No external MOOVE purchase is required by the current recovery snapshot, so there is no temporary xExchange position to reverse here."
+      }
+
+      if (complete) {
+        Text(
+          "The reward phase is clear. The next protocol step is the CowCow exit below.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
         )
       }
     }
@@ -377,86 +534,47 @@ private fun ClaimFirstActions(
 }
 
 @Composable
-private fun UnstakeProtocolPreview(snapshot: RecoverySnapshot) {
-  if (snapshot.stakedCowNonces.isEmpty()) return
-
-  val encoded = remember(snapshot.stakedCowNonces) {
-    runCatching { CowCowUnstakePreviewCodec.encode(snapshot.stakedCowNonces) }
-  }
-
-  Surface(
+private fun RecoveryStage(
+  number: Int,
+  complete: Boolean,
+  title: String,
+  detail: String
+) {
+  Row(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(16.dp),
-    color = MaterialTheme.colorScheme.primaryContainer,
-    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    horizontalArrangement = Arrangement.spacedBy(10.dp),
+    verticalAlignment = Alignment.Top
   ) {
-    Column(
-      modifier = Modifier.padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp)
+    Surface(
+      shape = RoundedCornerShape(100.dp),
+      color = if (complete) {
+        MaterialTheme.colorScheme.secondaryContainer
+      } else {
+        MaterialTheme.colorScheme.primaryContainer
+      },
+      contentColor = if (complete) {
+        MaterialTheme.colorScheme.onSecondaryContainer
+      } else {
+        MaterialTheme.colorScheme.onPrimaryContainer
+      }
     ) {
-      Text(
-        "Unstake protocol preview · read-only",
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.SemiBold
-      )
-
-      encoded.onSuccess { preview ->
-        RecoveryQuoteRow("CowCows in payload", preview.nonces.size.toString())
-        RecoveryQuoteRow("Historical gas ceiling", formatInteger(CowCowConfig.UNSTAKE_GAS_LIMIT))
-        RecoveryQuoteRow("Current rewards before unstake", "${formatMoove(snapshot.claimableRewards)} MOOVE")
-
-        if (snapshot.claimableRewards > BigDecimal.ZERO) {
-          Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.Top
-          ) {
-            Icon(Icons.Filled.WarningAmber, contentDescription = null)
-            Text(
-              "Claim-first is not finished yet. A real unstake at the current state would also attempt to pay the remaining MOOVE rewards.",
-              style = MaterialTheme.typography.bodySmall
-            )
-          }
-        } else {
-          Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.Top
-          ) {
-            Icon(Icons.Filled.CheckCircle, contentDescription = null)
-            Text(
-              "No pending MOOVE reward is currently reported. This is the state we want immediately before enabling unstake.",
-              style = MaterialTheme.typography.bodySmall
-            )
-          }
-        }
-
-        Text("Exact payload", style = MaterialTheme.typography.labelLarge)
-        Surface(
-          modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(10.dp),
-          color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
-        ) {
-          Text(
-            text = preview.payload,
-            modifier = Modifier.padding(10.dp),
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace
-          )
-        }
-
-        Text(
-          "The 600M value is a conservative historical ceiling from a successful 72-CowCow unstake, not a live gas simulation. The live simulation/signing path remains intentionally disabled.",
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant
+      if (complete) {
+        Icon(
+          imageVector = Icons.Filled.CheckCircle,
+          contentDescription = null,
+          modifier = Modifier.padding(5.dp)
         )
-        LockedAction(
-          "Preview only · no unstake signature or broadcast can be triggered from this card."
-        )
-      }.onFailure { error ->
+      } else {
         Text(
-          "Unable to build the read-only preview: ${error.message}",
-          style = MaterialTheme.typography.bodySmall
+          text = "$number",
+          modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+          style = MaterialTheme.typography.labelLarge
         )
       }
+    }
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(title, style = MaterialTheme.typography.titleSmall)
+      Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
   }
 }
@@ -467,6 +585,8 @@ private fun ExitStateCard(
   pendingBatches: List<RecoveryUnbondBatch>,
   nowEpochSeconds: Long
 ) {
+  val claimComplete = isClaimFirstComplete(snapshot)
+
   Surface(
     modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(16.dp),
@@ -479,13 +599,22 @@ private fun ExitStateCard(
       Text("CowCow exit", style = MaterialTheme.typography.titleLarge)
 
       if (snapshot.stakedCowNonces.isNotEmpty()) {
-        RecoveryStep(
+        RecoveryStage(
           number = 5,
+          complete = false,
           title = "Unstake ${snapshot.stakedCowNonces.size} CowCows",
-          detail = "Mainnet history verifies unstake@<nonce>… and the MOOVE payout it triggers. The app reconstructs the exact nonce payload from contract state."
+          detail = if (claimComplete) {
+            "Rewards are cleared. The exact unstake payload can now be inspected in read-only protocol details."
+          } else {
+            "Finish the claim-first reward phase before moving to unstake verification."
+          }
         )
         LockedAction(
-          "Unstake signing remains disabled; use the read-only protocol preview above to verify the exact payload first."
+          if (claimComplete) {
+            "Read-only verification available · unstake signing and broadcast remain disabled."
+          } else {
+            "Unstake remains locked until the claim-first state is clear."
+          }
         )
       }
 
@@ -503,6 +632,108 @@ private fun ExitStateCard(
             index = index + 1,
             batch = batch,
             nowEpochSeconds = nowEpochSeconds
+          )
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun ProtocolDetailsCard(snapshot: RecoverySnapshot) {
+  if (snapshot.stakedCowNonces.isEmpty()) return
+
+  var expanded by remember(snapshot.stakedCowNonces) { mutableStateOf(false) }
+  val encoded = remember(snapshot.stakedCowNonces) {
+    runCatching { CowCowUnstakePreviewCodec.encode(snapshot.stakedCowNonces) }
+  }
+
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(16.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant
+  ) {
+    Column(
+      modifier = Modifier.padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Column(modifier = Modifier.weight(1f)) {
+          Text("Protocol details", style = MaterialTheme.typography.titleMedium)
+          Text(
+            "Read-only payload, nonce count and historical gas ceiling",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        }
+        TextButton(onClick = { expanded = !expanded }) {
+          Text(if (expanded) "Hide" else "View")
+        }
+      }
+
+      if (expanded) {
+        encoded.onSuccess { preview ->
+          Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+          ) {
+            Column(
+              modifier = Modifier.padding(14.dp),
+              verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+              RecoveryQuoteRow("CowCows in payload", preview.nonces.size.toString())
+              RecoveryQuoteRow("Historical gas ceiling", formatInteger(CowCowConfig.UNSTAKE_GAS_LIMIT))
+              RecoveryQuoteRow("Current rewards before unstake", "${formatMoove(snapshot.claimableRewards)} MOOVE")
+
+              if (snapshot.claimableRewards > BigDecimal.ZERO) {
+                StatusLine(
+                  icon = Icons.Filled.WarningAmber,
+                  title = "Claim-first is not finished",
+                  detail = "A real unstake would also attempt to pay the remaining MOOVE rewards."
+                )
+              } else {
+                StatusLine(
+                  icon = Icons.Filled.CheckCircle,
+                  title = "Reward state is clear",
+                  detail = "No pending MOOVE reward is currently reported."
+                )
+              }
+
+              Text("Exact payload", style = MaterialTheme.typography.labelLarge)
+              Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
+              ) {
+                Text(
+                  text = preview.payload,
+                  modifier = Modifier.padding(10.dp),
+                  style = MaterialTheme.typography.bodySmall,
+                  fontFamily = FontFamily.Monospace
+                )
+              }
+
+              Text(
+                "600M is a conservative historical ceiling from a successful 72-CowCow unstake, not a live simulation.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+              LockedAction(
+                "Preview only · no unstake signature or broadcast can be triggered here."
+              )
+            }
+          }
+        }.onFailure { error ->
+          Text(
+            "Unable to build the read-only preview: ${error.message}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
           )
         }
       }
@@ -642,58 +873,6 @@ private fun TransactionActionStatus(
 }
 
 @Composable
-private fun RecoveryCostCard(
-  snapshot: RecoverySnapshot,
-  costState: RecoveryViewModel.CostUiState
-) {
-  Surface(
-    modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(16.dp),
-    color = MaterialTheme.colorScheme.primaryContainer,
-    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-  ) {
-    Column(
-      modifier = Modifier.padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-      Text("Estimated EGLD loss", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-      when (val state = costState) {
-        RecoveryViewModel.CostUiState.Loading -> TransactionStatus(
-          "Quoting xExchange and simulating network fees…",
-          loading = true
-        )
-        is RecoveryViewModel.CostUiState.Unavailable -> Text(
-          "Live estimate unavailable: ${state.message}",
-          style = MaterialTheme.typography.bodySmall
-        )
-        is RecoveryViewModel.CostUiState.Success -> {
-          state.quote?.let { quote ->
-            RecoveryQuoteRow("Temporary capital", "${formatEgld(quote.buyCostEgld)} EGLD")
-            RecoveryQuoteRow("Expected sell-back", "${formatEgld(quote.expectedSellReturnEgld)} EGLD")
-            RecoveryQuoteRow("Expected DEX friction", "${formatEgld(state.estimate.expectedDexLossEgld)} EGLD")
-            RecoveryQuoteRow("Worst-case DEX friction", "${formatEgld(state.estimate.worstCaseDexLossEgld)} EGLD")
-          }
-          state.networkFees.topUp?.let { fee ->
-            RecoveryQuoteRow("Top-up network fee", "${formatEgld(fee.feeEgld)} EGLD")
-          }
-          RecoveryQuoteRow("claimRewards network fee", "${formatEgld(state.networkFees.claim.feeEgld)} EGLD")
-          RecoveryQuoteRow("Expected claim-cycle loss", "${formatEgld(state.estimate.expectedTotalLossEgld)} EGLD")
-          RecoveryQuoteRow("Worst-case claim-cycle loss", "${formatEgld(state.estimate.worstCaseTotalLossEgld)} EGLD")
-          state.quote?.let {
-            RecoveryQuoteRow("Temporary capital recovered", formatPercent(state.estimate.expectedRecoveryRatio))
-          }
-          Text(
-            "${formatMoove(snapshot.claimableRewards)} MOOVE of accrued rewards are recovered value and are not counted as a loss. Exit-call fees remain separate until their builders are enabled.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-        }
-      }
-    }
-  }
-}
-
-@Composable
 private fun RecoveryLoading() {
   Surface(
     modifier = Modifier.fillMaxWidth(),
@@ -758,57 +937,19 @@ private fun LockedAction(message: String) {
 }
 
 @Composable
-private fun RecoveryStep(number: Int, title: String, detail: String) {
+private fun StatusLine(
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  title: String,
+  detail: String
+) {
   Row(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(10.dp),
-    verticalAlignment = Alignment.Top
+    verticalAlignment = Alignment.Top,
+    horizontalArrangement = Arrangement.spacedBy(8.dp)
   ) {
-    Surface(
-      shape = RoundedCornerShape(100.dp),
-      color = MaterialTheme.colorScheme.primaryContainer,
-      contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-    ) {
-      Text(
-        text = "$number",
-        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-        style = MaterialTheme.typography.labelLarge
-      )
-    }
-    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Icon(icon, contentDescription = null)
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
       Text(title, style = MaterialTheme.typography.titleSmall)
       Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-  }
-}
-
-@Composable
-private fun MetricRow(
-  label: String,
-  value: BigDecimal,
-  unit: String,
-  emphasize: Boolean = false,
-  note: String? = null
-) {
-  Card(
-    modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(14.dp),
-    colors = CardDefaults.cardColors(
-      containerColor = if (emphasize) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    )
-  ) {
-    Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Column(modifier = Modifier.weight(1f)) {
-        Text(label, style = MaterialTheme.typography.labelMedium)
-        note?.let {
-          Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-      }
-      Text("${formatMoove(value)} $unit", style = MaterialTheme.typography.titleSmall)
     }
   }
 }
@@ -874,10 +1015,20 @@ private fun ConfirmationDialog(
   )
 }
 
-private fun formatMoove(value: BigDecimal): String = value
-  .setScale(4, RoundingMode.HALF_UP)
-  .stripTrailingZeros()
-  .toPlainString()
+private fun isClaimFirstComplete(snapshot: RecoverySnapshot): Boolean {
+  return snapshot.claimableRewards <= BigDecimal.ZERO &&
+      snapshot.claimLiquidityGap <= BigDecimal.ZERO &&
+      snapshot.recommendedTopUp <= BigDecimal.ZERO &&
+      snapshot.amountToAcquire <= BigDecimal.ZERO
+}
+
+private fun formatMoove(value: BigDecimal): String {
+  if (value > BigDecimal.ZERO && value < MOOVE_DISPLAY_EPSILON) return "< 0.0001"
+  return value
+    .setScale(4, RoundingMode.HALF_UP)
+    .stripTrailingZeros()
+    .toPlainString()
+}
 
 private fun formatEgld(value: BigDecimal): String = value
   .setScale(8, RoundingMode.HALF_UP)
