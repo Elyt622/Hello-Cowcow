@@ -3,6 +3,7 @@ package com.example.hellocowcow.data.retrofit.mvxApi.response
 import com.example.hellocowcow.domain.DomainModelConvertible
 import com.example.hellocowcow.domain.models.DomainToken
 import com.google.gson.annotations.SerializedName
+import java.math.BigDecimal
 
 data class Token (
 
@@ -50,7 +51,7 @@ data class Token (
       marketCap,
       supply,
       circulatingSupply,
-      balance,
+      normalizedBalance(),
       valueUsd,
       assets?.website,
       assets?.description,
@@ -67,4 +68,13 @@ data class Token (
     )
   }
 
+  private fun normalizedBalance(): String? {
+    val raw = balance?.takeIf { it.isNotBlank() } ?: return null
+    val tokenDecimals = decimals ?: return raw
+    val atomic = raw.toBigIntegerOrNull() ?: return raw
+
+    return BigDecimal(atomic, tokenDecimals)
+      .stripTrailingZeros()
+      .toPlainString()
+  }
 }
