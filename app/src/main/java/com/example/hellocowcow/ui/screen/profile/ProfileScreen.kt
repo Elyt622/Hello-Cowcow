@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -58,17 +59,15 @@ fun ProfileScreen(
     viewModel.load(account.address)
   }
 
-  Column(
-    modifier = Modifier.fillMaxSize()
-  ) {
+  Column(modifier = Modifier.fillMaxSize()) {
     Column(
       modifier = Modifier.padding(
-        start = 20.dp,
-        top = 20.dp,
-        end = 20.dp,
-        bottom = 16.dp
+        start = 16.dp,
+        top = 16.dp,
+        end = 16.dp,
+        bottom = 12.dp
       ),
-      verticalArrangement = Arrangement.spacedBy(16.dp)
+      verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
       PortfolioHeader(account)
 
@@ -79,14 +78,8 @@ fun ProfileScreen(
       )
 
       when (val currentTransactionState = transactionState) {
-        is ProfileViewModel.UiStateTx.Send -> {
-          CustomAlert(tx = currentTransactionState.tx)
-        }
-
-        is ProfileViewModel.UiStateTx.Error -> {
-          InlineError(currentTransactionState.error)
-        }
-
+        is ProfileViewModel.UiStateTx.Send -> CustomAlert(tx = currentTransactionState.tx)
+        is ProfileViewModel.UiStateTx.Error -> InlineError(currentTransactionState.error)
         else -> Unit
       }
     }
@@ -106,31 +99,35 @@ private fun PortfolioHeader(account: DomainAccount) {
     .takeIf { it.isNotBlank() }
   val address = account.address
   val shortAddress = if (address.length > 18) {
-    "${address.take(10)}…${address.takeLast(6)}"
+    "${address.take(8)}…${address.takeLast(6)}"
   } else {
     address
   }
 
-  Column(
-    verticalArrangement = Arrangement.spacedBy(4.dp)
-  ) {
+  Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
     Text(
-      text = "Your CowCow portfolio",
+      text = "Portfolio",
       style = MaterialTheme.typography.headlineLarge,
       color = MaterialTheme.colorScheme.onBackground
     )
     Text(
-      text = username?.let { "Hello $it" } ?: "Connected with xPortal",
-      style = MaterialTheme.typography.titleMedium,
-      color = MaterialTheme.colorScheme.onSurface
+      text = username?.let { "Connected as $it" } ?: "Connected with xPortal",
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant
     )
-    Text(
-      text = shortAddress,
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis
-    )
+    Surface(
+      shape = RoundedCornerShape(100.dp),
+      color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+      Text(
+        text = shortAddress,
+        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+    }
   }
 }
 
@@ -145,13 +142,13 @@ private fun RewardsCard(
 
   Surface(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(28.dp),
+    shape = RoundedCornerShape(16.dp),
     color = MaterialTheme.colorScheme.secondaryContainer,
     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
   ) {
     Column(
-      modifier = Modifier.padding(20.dp),
-      verticalArrangement = Arrangement.spacedBy(14.dp)
+      modifier = Modifier.padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -160,62 +157,69 @@ private fun RewardsCard(
       ) {
         Column(
           modifier = Modifier.weight(1f),
-          verticalArrangement = Arrangement.spacedBy(3.dp)
+          verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
           Text(
             text = "MOOVE rewards",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f)
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.70f)
           )
 
           when (rewardState) {
-            ProfileViewModel.UiState.Loading -> {
-              Text(
-                text = "Loading rewards…",
-                style = MaterialTheme.typography.titleMedium
-              )
-            }
+            ProfileViewModel.UiState.Loading -> Text(
+              text = "Loading rewards…",
+              style = MaterialTheme.typography.titleMedium
+            )
 
             is ProfileViewModel.UiState.Success -> {
+              Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+              ) {
+                Text(
+                  text = rewardState.data,
+                  style = MaterialTheme.typography.headlineMedium,
+                  fontWeight = FontWeight.Bold
+                )
+                Text(
+                  text = "MOOVE",
+                  style = MaterialTheme.typography.labelLarge,
+                  modifier = Modifier.padding(bottom = 4.dp)
+                )
+              }
               Text(
-                text = rewardState.data,
-                style = MaterialTheme.typography.headlineMedium
-              )
-              Text(
-                text = "MOOVE ready to claim",
+                text = "Available to claim",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f)
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.70f)
               )
             }
 
-            is ProfileViewModel.UiState.Error -> {
-              Text(
-                text = "Rewards unavailable",
-                style = MaterialTheme.typography.titleMedium
-              )
-            }
+            is ProfileViewModel.UiState.Error -> Text(
+              text = "Rewards unavailable",
+              style = MaterialTheme.typography.titleMedium
+            )
           }
         }
 
         Image(
           imageVector = ImageVector.vectorResource(id = R.drawable.moovelogo),
           contentDescription = "MOOVE",
-          modifier = Modifier.size(42.dp)
+          modifier = Modifier.size(38.dp)
         )
       }
 
       when {
         transactionState is ProfileViewModel.UiStateTx.AwaitingSignature -> {
-          ClaimStatus("Confirm the transaction in xPortal")
+          ClaimStatus("Confirm in xPortal")
         }
 
         transactionState is ProfileViewModel.UiStateTx.Broadcasting -> {
           Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
           ) {
             CircularProgressIndicator(
-              modifier = Modifier.size(20.dp),
+              modifier = Modifier.size(18.dp),
               strokeWidth = 2.dp,
               color = MaterialTheme.colorScheme.onSecondaryContainer
             )
@@ -229,7 +233,7 @@ private fun RewardsCard(
             enabled = rewardState is ProfileViewModel.UiState.Success && !busy,
             modifier = Modifier.fillMaxWidth()
           ) {
-            Text("Claim rewards")
+            Text("Claim MOOVE")
           }
         }
       }
@@ -249,7 +253,7 @@ private fun RewardsCard(
 private fun ClaimStatus(message: String) {
   Text(
     text = message,
-    style = MaterialTheme.typography.bodyMedium,
+    style = MaterialTheme.typography.bodySmall,
     color = MaterialTheme.colorScheme.onSecondaryContainer
   )
 }
@@ -258,14 +262,14 @@ private fun ClaimStatus(message: String) {
 private fun InlineError(message: String) {
   Card(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(18.dp),
+    shape = RoundedCornerShape(14.dp),
     colors = CardDefaults.cardColors(
       containerColor = MaterialTheme.colorScheme.errorContainer
     )
   ) {
     Text(
       text = message,
-      modifier = Modifier.padding(14.dp),
+      modifier = Modifier.padding(12.dp),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onErrorContainer
     )
@@ -281,9 +285,7 @@ private fun PortfolioTabs(
   var tabIndex by remember { mutableIntStateOf(0) }
   val tabs = listOf("Owned", "Staked", "Listed")
 
-  Column(
-    modifier = modifier.fillMaxWidth()
-  ) {
+  Column(modifier = modifier.fillMaxWidth()) {
     SecondaryTabRow(
       selectedTabIndex = tabIndex,
       containerColor = MaterialTheme.colorScheme.background,
