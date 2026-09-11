@@ -1,7 +1,6 @@
 package com.example.hellocowcow.data.repositories
 
 import com.example.hellocowcow.data.network.api.MvxApi
-import com.example.hellocowcow.data.network.api.ProxyXoxnoApi
 import com.example.hellocowcow.data.network.api.XoxnoApi
 import com.example.hellocowcow.data.retrofit.proxyXoxnoApi.Collection
 import com.example.hellocowcow.data.retrofit.proxyXoxnoApi.Resources
@@ -17,7 +16,6 @@ import javax.inject.Inject
 class NftRepositoryImpl @Inject constructor(
   val mySchedulers: MySchedulers,
   val mvxApi: MvxApi,
-  val proxyXoxnoApi: ProxyXoxnoApi,
   val xoxnoApi: XoxnoApi
 ) : NftRepository {
 
@@ -63,23 +61,25 @@ class NftRepositoryImpl @Inject constructor(
   override fun getNftXoxno(
     identifier: String
   ): Single<DomainNft> =
-    proxyXoxnoApi.getNft(identifier)
-      .map { it.toDomain() }
-      .subscribeOn(mySchedulers.io)
-      .observeOn(mySchedulers.main)
+    // Legacy name kept for compatibility. Modern NFT reads are sourced from
+    // the public MultiversX API so they do not depend on obsolete XOXNO routes.
+    getNftMvx(identifier)
 
   override fun getCowsListing(
     address: String
   ): Observable<Collection> =
-    proxyXoxnoApi.getCowsListing(address)
-      .subscribeOn(mySchedulers.io)
+    // The legacy /accounts/{address}/listings XOXNO endpoint was removed.
+    // Keep this compatibility surface neutral until it is migrated to the
+    // current public /nft/query filter model.
+    Observable.just(Collection())
       .observeOn(mySchedulers.main)
 
   override fun getCowsInWallet(
     address: String
   ): Observable<Collection> =
-    proxyXoxnoApi.getCowsInWallet(address)
-      .subscribeOn(mySchedulers.io)
+    // Owned CowCows are already read through MultiversX by getAllCowsInWallet.
+    // This legacy collection-shaped API is retained only for old UI callers.
+    Observable.just(Collection())
       .observeOn(mySchedulers.main)
 
   override fun getUpgradedCowsCount(): Observable<Upgraded> =
