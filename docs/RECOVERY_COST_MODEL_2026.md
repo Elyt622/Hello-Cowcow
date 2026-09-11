@@ -17,6 +17,8 @@ Then:
 
 Only the temporary MOOVE purchase is quoted as external capital on xExchange.
 
+All MOOVE liquidity arithmetic keeps the token's full 18-decimal precision. Display formatting may round values for readability, but top-up construction and comparisons use the exact decoded amount so presentation rounding cannot leave the legacy contract fractionally underfunded.
+
 ## EGLD loss model
 
 For the temporary MOOVE amount, Recovery requests live xExchange quotes for:
@@ -31,7 +33,7 @@ The UI separates:
 - expected DEX friction;
 - worst-case DEX friction;
 - MultiversX top-up fee;
-- MultiversX claim fee;
+- MultiversX `claimRewards` fee;
 - expected claim-cycle loss;
 - worst-case claim-cycle loss.
 
@@ -39,12 +41,12 @@ Claimed rewards are shown separately and are never counted as a recovery cost.
 
 ## Network fees
 
-Top-up and claim fees use the official read-only MultiversX transaction-cost endpoint when available. Gas units are converted to EGLD with current network parameters and the gas-price modifier.
+Top-up and `claimRewards` fees use the official read-only MultiversX transaction-cost endpoint when available. Gas units are converted to EGLD with current network parameters and the gas-price modifier.
 
 If live transaction-cost simulation is unavailable, the configured transaction gas limit is used as a conservative fallback and the UI labels the estimate accordingly.
 
-The current claim-cycle estimate intentionally keeps the following separate until their exact transaction construction is part of Recovery:
+The current claim-cycle estimate intentionally keeps the following separate until their write builders are enabled in Recovery:
 
 - xExchange transaction gas;
-- unstake network fee;
-- unbond network fee.
+- `unstake` network fee;
+- final CowCow `claim@<nonce>...` network fee.
