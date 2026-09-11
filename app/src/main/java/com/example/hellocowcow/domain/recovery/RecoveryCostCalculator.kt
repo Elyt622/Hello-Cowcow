@@ -10,6 +10,9 @@ object RecoveryCostCalculator {
     require(input.expectedSellReturnEgld >= BigDecimal.ZERO)
     require(input.minimumSellReturnEgld >= BigDecimal.ZERO)
     require(input.estimatedNetworkFeesEgld >= BigDecimal.ZERO)
+    require(input.maximumNetworkFeesEgld >= input.estimatedNetworkFeesEgld) {
+      "Maximum network fees cannot be lower than estimated network fees"
+    }
     require(input.minimumSellReturnEgld <= input.expectedSellReturnEgld) {
       "Minimum sell return cannot exceed expected sell return"
     }
@@ -23,7 +26,7 @@ object RecoveryCostCalculator {
       .max(BigDecimal.ZERO)
 
     val expectedTotalLoss = expectedDexLoss.add(input.estimatedNetworkFeesEgld)
-    val worstCaseTotalLoss = worstCaseDexLoss.add(input.estimatedNetworkFeesEgld)
+    val worstCaseTotalLoss = worstCaseDexLoss.add(input.maximumNetworkFeesEgld)
 
     val expectedRecoveryRatio = if (input.buyCostEgld.signum() == 0) {
       BigDecimal.ONE
@@ -35,6 +38,7 @@ object RecoveryCostCalculator {
       expectedDexLossEgld = expectedDexLoss,
       worstCaseDexLossEgld = worstCaseDexLoss,
       estimatedNetworkFeesEgld = input.estimatedNetworkFeesEgld,
+      maximumNetworkFeesEgld = input.maximumNetworkFeesEgld,
       expectedTotalLossEgld = expectedTotalLoss,
       worstCaseTotalLossEgld = worstCaseTotalLoss,
       expectedRecoveryRatio = expectedRecoveryRatio
