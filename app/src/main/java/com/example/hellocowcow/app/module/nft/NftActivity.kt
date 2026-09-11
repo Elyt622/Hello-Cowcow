@@ -1,8 +1,7 @@
 package com.example.hellocowcow.app.module.nft
 
-import android.app.Activity
 import android.os.Bundle
-import android.widget.Toast
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -11,50 +10,45 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.example.hellocowcow.app.module.BaseActivity
@@ -64,480 +58,401 @@ import com.example.hellocowcow.domain.models.DomainNft
 import com.example.hellocowcow.ui.theme.HelloCowCowTheme
 import com.example.hellocowcow.ui.viewmodels.activity.NftViewModel
 import dagger.hilt.android.AndroidEntryPoint
-import es.dmoral.toasty.Toasty
-import timber.log.Timber
-import timber.log.Timber.Forest.plant
 import java.util.Locale
 
 @AndroidEntryPoint
 class NftActivity : BaseActivity() {
 
-  val viewModel by viewModels<NftViewModel>()
-
-  lateinit var identifier: String
+  private val viewModel by viewModels<NftViewModel>()
 
   override fun onCreate(savedInstanceState: Bundle?) {
-    plant(Timber.DebugTree())
-
     super.onCreate(savedInstanceState)
-    identifier = intent.getStringExtra("IDENTIFIER").toString()
+
+    val identifier = intent.getStringExtra("IDENTIFIER").orEmpty()
     viewModel.getNft(identifier)
+
     setContent {
       HelloCowCowTheme(dynamicColor = false) {
-        // A surface container using the 'background' color from the theme
         Surface(
-          modifier = Modifier
-            .fillMaxSize(),
-          color = MaterialTheme
-            .colorScheme
-            .background
-        ) { Body() }
-      }
-    }
-  }
-
-  @OptIn(ExperimentalMaterial3Api::class)
-  @Composable
-  fun MyScaffold(
-    title: String,
-    upAvailable: Boolean,
-    onUpClicked: () -> Unit,
-    content: @Composable (PaddingValues) -> Unit
-  ) {
-    Scaffold(
-      topBar = {
-        TopAppBar(
-          title = {
-            Text(
-              text = title,
-              style = MaterialTheme.typography.labelMedium,
-              color = MaterialTheme.colorScheme.primary
-            )
-          },
-          colors = TopAppBarDefaults
-            .topAppBarColors(
-              containerColor = MaterialTheme.colorScheme.background
-            ),
-          navigationIcon = {
-            if (upAvailable) {
-              IconButton(onClick = { onUpClicked() }) {
-                Icon(
-                  imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                  contentDescription = "Back",
-                  tint = MaterialTheme.colorScheme.primary
-                )
-              }
-            }
-          }
-        )
-      },
-      containerColor = Color.Transparent,
-      content = content
-    )
-  }
-
-  @Composable
-  fun Body() {
-    val activity = (LocalContext.current as? Activity)
-    val uiState by viewModel.uiState.collectAsState()
-
-    when (uiState) {
-      is NftViewModel.UiState.Loading -> {
-        Box(
           modifier = Modifier.fillMaxSize(),
-          contentAlignment = Alignment.Center
+          color = MaterialTheme.colorScheme.background
         ) {
-          CircularProgressIndicator(
-            modifier = Modifier.width(60.dp),
-            color = MaterialTheme.colorScheme.primary
-          )
-        }
-      }
-
-      is NftViewModel.UiState.Error -> {
-        Toasty.error(
-          this,
-          (uiState as NftViewModel.UiState.Error).error,
-          Toast.LENGTH_SHORT
-        ).show()
-      }
-
-      is NftViewModel.UiState.Success -> {
-        (uiState as NftViewModel.UiState.Success).nft.let { nft ->
-          MyScaffold(
-            title = nft.identifier.toString(),
-            upAvailable = true,
-            onUpClicked = { activity?.finish() },
-            content = { OnSuccess(nft = nft) }
-          )
-
+          NftScreen(viewModel)
         }
       }
     }
   }
+}
 
-  @OptIn(
-    ExperimentalGlideComposeApi::class,
-    ExperimentalFoundationApi::class
-  )
-  @Composable
-  fun OnSuccess(nft: DomainNft) {
-    val cardColors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.background
-    )
-    Column(
-      Modifier
-        .fillMaxSize()
-        .verticalScroll(rememberScrollState())
-        .padding(
-          top = 65.dp,
-          start = 8.dp,
-          end = 8.dp,
-          bottom = 8.dp
-        )
-    ) {
-      ElevatedCard(
-        elevation = CardDefaults
-          .elevatedCardElevation(16.dp)
-      ) {
-        if (nft.hasSecondNFT == true)
-          HorizontalPager(
-            modifier = Modifier
-              .size(350.dp),
-            state = rememberPagerState { 2 },
-            pageSpacing = 0.dp,
-            userScrollEnabled = true,
-            reverseLayout = false,
-            contentPadding = PaddingValues(0.dp),
-            pageSize = PageSize.Fill,
-            key = null,
-            pageContent = { index ->
-              Box(contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(
-                  modifier = Modifier.size(16.dp),
-                  color = MaterialTheme.colorScheme.background
-                )
-                GlideImage(
-                  model = arrayOf(
-                    nft.url,
-                    "https://xoxno.com/api/getCow?identifier=" +
-                        "${nft.identifier}"
-                  )[index],
-                  contentDescription = nft.name,
-                  modifier = Modifier.scale(
-                    scaleY = 1.07F,
-                    scaleX = 1.04F
-                  )
-                )
-                Row(
-                  horizontalArrangement = Arrangement.End,
-                  verticalAlignment = Alignment.Top,
-                  modifier = Modifier
-                    .padding(end = 8.dp, top = 8.dp)
-                    .fillMaxSize()
-                ) {
-                  ElevatedCard(
-                    elevation = CardDefaults
-                      .elevatedCardElevation(16.dp),
-                    colors = cardColors
-                  ) {
-                    Text(
-                      text = "Upgraded",
-                      Modifier
-                        .padding(8.dp),
-                      style = MaterialTheme.typography.labelSmall,
-                      color = MaterialTheme.colorScheme.primary
-                    )
-                  }
-                }
-              }
-            }
-          )
-        else {
-          GlideImage(
-            model = nft.url,
-            contentDescription = nft.name,
-            modifier = Modifier
-              .scale(
-                scaleY = 1.07F,
-                scaleX = 1.04F
-              )
-          )
-        }
-      }
-      Row(
-        Modifier.fillMaxWidth()
-      ) {
-        Text(
-          text = nft.name.toString(),
-          modifier = Modifier
-            .padding(top = 8.dp, start = 8.dp),
-          fontSize = 18.sp,
-          color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-          text = "Rank: " + nft.metadata?.rarity?.rank.toString(),
-          textAlign = TextAlign.End,
-          modifier = Modifier
-            .padding(top = 8.dp, end = 8.dp)
-            .fillMaxWidth(),
-          fontSize = 18.sp,
-          color = MaterialTheme.colorScheme.primary
-        )
-      }
-      if (nft.onSale == true)
-        ElevatedCard(
-          colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary
-          ),
-          modifier = Modifier.padding(
-            start = 8.dp,
-            bottom = 4.dp,
-            top = 8.dp
-          )
-        ) {
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NftScreen(viewModel: NftViewModel) {
+  val activity = LocalActivity.current
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+  Scaffold(
+    topBar = {
+      TopAppBar(
+        title = {
           Text(
-            color = MaterialTheme.colorScheme.background,
-            text = nft.saleInfoNft?.maxBidShort.toString()
-                + " "
-                + nft.saleInfoNft?.acceptedPaymentToken,
-            modifier = Modifier
-              .padding(8.dp)
+            text = (uiState as? NftViewModel.UiState.Success)
+              ?.nft
+              ?.identifier
+              .orEmpty(),
+            style = MaterialTheme.typography.titleMedium
           )
-        }
-      TabScreen(nft)
-    }
-  }
-
-  @Composable
-  fun TabScreen(nft: DomainNft) {
-
-    var tabIndex by remember { mutableIntStateOf(0) }
-
-    val tabs = listOf("Attributes", "Offers", "Activity")
-
-    Column(
-      modifier = Modifier
-        .padding(top = 8.dp)
-        .fillMaxWidth()
-    ) {
-      TabRow(
-        selectedTabIndex = tabIndex,
-        containerColor = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.background
-      ) {
-        tabs.forEachIndexed { index, title ->
-          Tab(
-            text = {
-              Text(
-                title, style = MaterialTheme.typography.labelMedium
-              )
-            },
-            selected = tabIndex == index,
-            onClick = { tabIndex = index },
-            selectedContentColor = MaterialTheme.colorScheme.background,
-            unselectedContentColor = MaterialTheme.colorScheme.background
-          )
-        }
-      }
-      when (tabIndex) {
-        0 -> AttributesTab(nft.metadata?.attributes!!)
-        1 -> OffersTab(nft.hasOffers.toBoolean(), nft.offersInfo)
-        2 -> ActivityTab()
-      }
-    }
-  }
-
-  @Composable
-  fun AttributesTab(
-    attributes: ArrayList<Attributes>
-  ) {
-    val cardColors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.primary,
-      contentColor = Color.Black
-    )
-    Column {
-      Row(
-        Modifier
-          .padding(
-            top = 8.dp,
-            bottom = 8.dp
-          )
-      ) {
-        Text(
-          text = "Attributes",
-          textAlign = TextAlign.Left,
-          color = MaterialTheme.colorScheme.primary,
-          modifier = Modifier
-            .padding(start = 8.dp)
-        )
-        Text(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(end = 8.dp),
-          text = "Rarity",
-          textAlign = TextAlign.Right,
-          color = MaterialTheme.colorScheme.primary
-        )
-      }
-      LazyVerticalGrid(
-        columns = GridCells.Adaptive(400.dp),
-        modifier = Modifier.height(360.dp),
-        content = {
-          items(attributes.size) { index ->
-            attributes[index].let { attribute ->
-              ElevatedCard(
-                Modifier.padding(bottom = 4.dp),
-                colors = cardColors,
-                elevation = CardDefaults.cardElevation(1.dp)
-              ) {
-                Row(
-                  Modifier
-                    .padding(8.dp)
-                ) {
-                  Column {
-                    Text(
-                      text = attribute.traitType.toString() +
-                          ": " + attribute.value,
-                      color = MaterialTheme.colorScheme.background,
-                      style = MaterialTheme.typography.labelMedium
-                    )
-                    if (attribute.floorPrice.toString() != ("null"))
-                      Text(
-                        text = "Floor: " +
-                            String.format(
-                              Locale.getDefault(),
-                              "%.2f",
-                              attribute.floorPrice
-                            ),
-                        color = MaterialTheme.colorScheme.background,
-                        style = MaterialTheme.typography.labelMedium
-                      )
-                    else
-                      Text(
-                        text = "Floor: None",
-                        color = MaterialTheme.colorScheme.background,
-                        style = MaterialTheme.typography.labelMedium
-                      )
-                  }
-                  Row(
-                    Modifier
-                      .align(Alignment.CenterVertically)
-                      .fillMaxSize(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                  ) {
-                    Text(
-                      text = attribute.occurance.toString()
-                          + " ("
-                          + String.format(
-                        Locale.getDefault(),
-                        "%.2f",
-                        attribute.frequency!! * 100.0
-                      )
-                          + "%)",
-                      color = MaterialTheme.colorScheme.background,
-                      style = MaterialTheme.typography.labelMedium,
-                      textAlign = TextAlign.Right
-                    )
-                  }
-                }
-              }
-            }
+        },
+        navigationIcon = {
+          IconButton(onClick = { activity?.finish() }) {
+            Icon(
+              imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+              contentDescription = "Back"
+            )
           }
-        }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+          containerColor = MaterialTheme.colorScheme.background
+        )
       )
     }
-  }
-
-  @Composable
-  fun OffersTab(
-    nftHasOffers: Boolean,
-    offersInfo: ArrayList<OffersInfo>
-  ) {
-
-    val cardColors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.primary,
-      contentColor = Color.Black
-    )
-
-    if (!nftHasOffers)
-      Column {
-        Spacer(modifier = Modifier.size(50.dp))
-        Text(
-          text = "No offers on this NFT!",
-          Modifier.fillMaxWidth(),
-          textAlign = TextAlign.Center
-        )
-      }
-    else {
-      LazyVerticalGrid(
-        columns = GridCells.Adaptive(300.dp),
-        modifier = Modifier
-          .height(300.dp)
-          .padding(top = 4.dp),
-        content = {
-          items(offersInfo.size) { index ->
-            offersInfo[index].let { offer ->
-              ElevatedCard(
-                Modifier.padding(bottom = 4.dp),
-                colors = cardColors,
-                elevation = CardDefaults.cardElevation(1.dp)
-              ) {
-                Row(
-                  Modifier
-                    .padding(8.dp)
-                ) {
-                  Column {
-                    Row {
-                      Text(
-                        text = offer.EgldValue.toString() + " "
-                            + offer.paymentToken,
-                        color = MaterialTheme.colorScheme.background,
-                        style = MaterialTheme.typography.labelMedium
-                      )
-                    }
-                    Row {
-                      if (offer.ownerUsername != null)
-                        Text(
-                          color = MaterialTheme.colorScheme.background,
-                          style = MaterialTheme.typography.labelMedium,
-                          text = "From: " + offer.ownerUsername.toString()
-                        )
-                      else {
-                        Text(
-                          color = MaterialTheme.colorScheme.background,
-                          style = MaterialTheme.typography.labelMedium,
-                          text = "From: "
-                              + offer.owner?.substring(0, 6)
-                              + "..."
-                              + offer.owner?.substring(
-                            offer.owner!!.length - 5,
-                            offer.owner!!.length
-                          )
-                        )
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+  ) { padding ->
+    when (val state = uiState) {
+      NftViewModel.UiState.Loading -> LoadingNft(padding)
+      is NftViewModel.UiState.Error -> ErrorNft(
+        padding = padding,
+        message = state.error
       )
-    }
-  }
-
-
-  @Composable
-  fun ActivityTab() {
-    Column {
-      Spacer(modifier = Modifier.size(50.dp))
-      Text(
-        text = "Soon",
-        modifier = Modifier.fillMaxWidth(),
-        textAlign = TextAlign.Center
+      is NftViewModel.UiState.Success -> NftContent(
+        padding = padding,
+        nft = state.nft
       )
     }
   }
 }
+
+@Composable
+private fun LoadingNft(padding: PaddingValues) {
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .padding(padding),
+    contentAlignment = Alignment.Center
+  ) {
+    CircularProgressIndicator()
+  }
+}
+
+@Composable
+private fun ErrorNft(
+  padding: PaddingValues,
+  message: String
+) {
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .padding(padding)
+      .padding(24.dp),
+    contentAlignment = Alignment.Center
+  ) {
+    Card(
+      colors = CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.errorContainer
+      )
+    ) {
+      Text(
+        text = message,
+        modifier = Modifier.padding(20.dp),
+        color = MaterialTheme.colorScheme.onErrorContainer
+      )
+    }
+  }
+}
+
+@OptIn(
+  ExperimentalGlideComposeApi::class,
+  ExperimentalFoundationApi::class
+)
+@Composable
+private fun NftContent(
+  padding: PaddingValues,
+  nft: DomainNft
+) {
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .padding(padding)
+      .verticalScroll(rememberScrollState())
+      .padding(16.dp),
+    verticalArrangement = Arrangement.spacedBy(16.dp)
+  ) {
+    NftArtwork(nft)
+
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+      Column {
+        Text(
+          text = nft.name.orEmpty(),
+          style = MaterialTheme.typography.headlineSmall,
+          color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+          text = nft.identifier.orEmpty(),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
+      Text(
+        text = "Rank #${nft.metadata?.rarity?.rank ?: "—"}",
+        style = MaterialTheme.typography.titleMedium
+      )
+    }
+
+    if (nft.onSale == true) {
+      Card(
+        colors = CardDefaults.cardColors(
+          containerColor = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary
+        )
+      ) {
+        Column(
+          modifier = Modifier.padding(16.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+          Text(
+            text = "Listed",
+            style = MaterialTheme.typography.labelLarge
+          )
+          Text(
+            text = "${nft.saleInfoNft?.maxBidShort ?: "—"} ${nft.saleInfoNft?.acceptedPaymentToken.orEmpty()}",
+            style = MaterialTheme.typography.titleMedium
+          )
+        }
+      }
+    }
+
+    NftTabs(nft)
+  }
+}
+
+@OptIn(
+  ExperimentalGlideComposeApi::class,
+  ExperimentalFoundationApi::class
+)
+@Composable
+private fun NftArtwork(nft: DomainNft) {
+  Card(
+    modifier = Modifier
+      .fillMaxWidth()
+      .aspectRatio(1f),
+    shape = RoundedCornerShape(24.dp)
+  ) {
+    if (nft.hasSecondNFT == true) {
+      val pagerState = rememberPagerState(pageCount = { 2 })
+      HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxSize()
+      ) { index ->
+        Box(
+          modifier = Modifier.fillMaxSize()
+        ) {
+          GlideImage(
+            model = if (index == 0) {
+              nft.url
+            } else {
+              "https://xoxno.com/api/getCow?identifier=${nft.identifier}"
+            },
+            contentDescription = nft.name,
+            modifier = Modifier.fillMaxSize()
+          )
+          if (index == 1) {
+            Card(
+              modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(12.dp)
+            ) {
+              Text(
+                text = "Upgraded",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+              )
+            }
+          }
+        }
+      }
+    } else {
+      GlideImage(
+        model = nft.url,
+        contentDescription = nft.name,
+        modifier = Modifier.fillMaxSize()
+      )
+    }
+  }
+}
+
+@Composable
+private fun NftTabs(nft: DomainNft) {
+  var tabIndex by remember { mutableIntStateOf(0) }
+  val tabs = listOf("Attributes", "Offers", "Activity")
+
+  Column(
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    SecondaryTabRow(
+      selectedTabIndex = tabIndex,
+      containerColor = MaterialTheme.colorScheme.surfaceVariant,
+      contentColor = MaterialTheme.colorScheme.primary
+    ) {
+      tabs.forEachIndexed { index, title ->
+        Tab(
+          selected = tabIndex == index,
+          onClick = { tabIndex = index },
+          text = { Text(title) }
+        )
+      }
+    }
+
+    when (tabIndex) {
+      0 -> AttributesTab(nft.metadata?.attributes.orEmpty())
+      1 -> OffersTab(
+        nftHasOffers = nft.hasOffers.toBoolean(),
+        offersInfo = nft.offersInfo
+      )
+      else -> ActivityTab()
+    }
+  }
+}
+
+@Composable
+private fun AttributesTab(attributes: List<Attributes>) {
+  val locale = LocalLocale.current.platformLocale
+
+  if (attributes.isEmpty()) {
+    EmptySection("No attributes available")
+    return
+  }
+
+  Column(
+    verticalArrangement = Arrangement.spacedBy(8.dp)
+  ) {
+    attributes.forEach { attribute ->
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+          containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+      ) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(14.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Column(
+            modifier = Modifier.weight(1f)
+          ) {
+            Text(
+              text = "${attribute.traitType}: ${attribute.value}",
+              style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+              text = attribute.floorPrice?.let {
+                "Floor: ${formatNumber(locale, "%.2f", it)} EGLD"
+              } ?: "Floor: None",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+          }
+
+          Text(
+            text = "${attribute.occurance ?: 0} (${formatNumber(locale, "%.2f", (attribute.frequency ?: 0.0) * 100.0)}%)",
+            style = MaterialTheme.typography.labelLarge,
+            textAlign = TextAlign.End
+          )
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun OffersTab(
+  nftHasOffers: Boolean,
+  offersInfo: List<OffersInfo>
+) {
+  if (!nftHasOffers || offersInfo.isEmpty()) {
+    EmptySection("No offers on this NFT")
+    return
+  }
+
+  Column(
+    verticalArrangement = Arrangement.spacedBy(8.dp)
+  ) {
+    offersInfo.forEach { offer ->
+      val owner = offer.ownerUsername
+        ?: offer.owner?.let { address ->
+          if (address.length > 12) {
+            "${address.take(6)}…${address.takeLast(5)}"
+          } else {
+            address
+          }
+        }
+        ?: "Unknown"
+
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+          containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+      ) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(14.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Column {
+            Text(
+              text = "${offer.EgldValue ?: "—"} ${offer.paymentToken.orEmpty()}",
+              style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+              text = "From $owner",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun ActivityTab() {
+  EmptySection("Activity timeline coming next")
+}
+
+@Composable
+private fun EmptySection(message: String) {
+  Box(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(vertical = 32.dp),
+    contentAlignment = Alignment.Center
+  ) {
+    Text(
+      text = message,
+      color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+  }
+}
+
+private fun formatNumber(
+  locale: Locale,
+  pattern: String,
+  value: Double
+): String = String.format(locale, pattern, value)

@@ -1,6 +1,6 @@
-package com.example.hellocowcow.data.retrofit.mvxApi.request
+package com.example.hellocowcow.domain.models
 
-data class Transaction(
+data class MvxTransaction(
   val nonce: Int = 0,
   val value: String = "0",
   val receiver: String = "",

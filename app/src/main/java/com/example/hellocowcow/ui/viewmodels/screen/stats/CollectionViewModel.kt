@@ -1,6 +1,7 @@
 package com.example.hellocowcow.ui.viewmodels.screen.stats
 
 import com.example.hellocowcow.app.module.BaseViewModel
+import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.domain.models.CowCollection
 import com.example.hellocowcow.domain.repositories.NftRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,22 +34,20 @@ class CollectionViewModel @Inject constructor(
     Observable.zip(
       nftRepository.getStakingCowsCount().toObservable(),
       nftRepository.getUpgradedCowsCount(),
-      nftRepository.getStatsCollection(
-        "COW-cd463d"
-      ).map { it.pageProps!! }
-    ) { stakingCount, upgradedCount, statsCowCollection ->
+      nftRepository.getStatsCollection(CowCowConfig.COLLECTION_ID)
+    ) { stakingCount, upgradedCount, stats ->
       CowCollection(
         stakedCount = stakingCount,
-        holdersCount = statsCowCollection.holdersCount,
-        listedCount = statsCowCollection.listedNFTs,
-        floorPrice = statsCowCollection.fallBackFloor,
+        holdersCount = stats.holdersCount,
+        listedCount = stats.listedCount,
+        floorPrice = stats.floorPrice,
         totalUpgradedCount = upgradedCount.count,
-        athEgldPrice = statsCowCollection.profileFallback?.statistics?.tradeData?.athEgldPrice,
-        totalTrades = statsCowCollection.profileFallback?.statistics?.tradeData?.totalTrades,
-        followAccountsCount = statsCowCollection.profileFallback?.statistics?.other?.followCount,
-        dayEgldVolume = statsCowCollection.profileFallback?.statistics?.tradeData?.dayEgldVolume,
-        weekEgldVolume = statsCowCollection.profileFallback?.statistics?.tradeData?.weekEgldVolume,
-        totalEgldVolume = statsCowCollection.profileFallback?.statistics?.tradeData?.totalEgldVolume
+        athEgldPrice = stats.allTimeHighPrice,
+        totalTrades = stats.totalTrades,
+        followAccountsCount = stats.followCount,
+        dayEgldVolume = stats.dayVolume,
+        weekEgldVolume = stats.weekVolume,
+        totalEgldVolume = stats.totalVolume
       )
     }.subscribeBy(
       onNext = {
@@ -58,6 +57,5 @@ class CollectionViewModel @Inject constructor(
         _uiState.value = UiState.Error(it.message.toString())
       }
     ).addTo(disposable)
-
 
 }

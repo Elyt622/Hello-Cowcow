@@ -1,6 +1,5 @@
 package com.example.hellocowcow.ui.screen.profile
 
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,19 +16,17 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.hellocowcow.R
 import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.ui.composables.CustomAlert
@@ -40,9 +37,6 @@ import com.example.hellocowcow.ui.viewmodels.screen.profile.MarketViewModel
 import com.example.hellocowcow.ui.viewmodels.screen.profile.ProfileViewModel
 import com.example.hellocowcow.ui.viewmodels.screen.profile.StakeViewModel
 import com.example.hellocowcow.ui.viewmodels.screen.profile.WalletViewModel
-import com.reown.sign.client.SignClient
-import es.dmoral.toasty.Toasty
-import timber.log.Timber
 
 @Composable
 fun ProfileScreen(
@@ -50,20 +44,16 @@ fun ProfileScreen(
   topic: String,
   viewModel: ProfileViewModel
 ) {
-  val uiState by viewModel.uiState.collectAsState()
-  val uiStateTx by viewModel.uiStateTx.collectAsState()
-  val context = LocalContext.current
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val uiStateTx by viewModel.uiStateTx.collectAsStateWithLifecycle()
 
-  val functionExecuted = remember { mutableStateOf(false) }
-
-  // LaunchedEffect runs when the Composable starts up
-  LaunchedEffect(Unit) {
-    if (!functionExecuted.value) {
-      viewModel.setAddress(account.address)
-      viewModel.getUnclaimedMooveForUser()
-      functionExecuted.value = true
-    }
+  LaunchedEffect(account.address) {
+    viewModel.load(account.address)
   }
+
+  val claimInProgress = uiStateTx is ProfileViewModel.UiStateTx.AwaitingSignature ||
+      uiStateTx is ProfileViewModel.UiStateTx.Broadcasting
+
   Column {
     Row(
       verticalAlignment = Alignment.CenterVertically,
@@ -86,30 +76,31 @@ fun ProfileScreen(
           contentColor = MaterialTheme.colorScheme.background,
           containerColor = MaterialTheme.colorScheme.primary
         ),
+        enabled = uiState is ProfileViewModel.UiState.Success && !claimInProgress,
         onClick = {
-          var error = false
-          SignClient.request(
-            request = viewModel.buildClaimRewardRequest(account, topic),
-            onError = { err ->
-              error = true
-              Timber.tag("ERROR").e(err.throwable)
-            }
-          )
-          if (!error) {
-            Toasty.info(
-              context,
-              "Request sent to xPortal",
-              Toast.LENGTH_SHORT
-            ).show()
-          }
+          viewModel.requestClaimRewards(account, topic)
         }
       ) {
-        when (uiState) {
-          is ProfileViewModel.UiState.Success -> {
-            (uiState as ProfileViewModel.UiState.Success)
-              .data.let { data ->
+        when (uiStateTx) {
+          ProfileViewModel.UiStateTx.AwaitingSignature -> {
+            Text(
+              text = "Confirm in xPortal",
+              style = MaterialTheme.typography.labelMedium
+            )
+          }
+
+          ProfileViewModel.UiStateTx.Broadcasting -> {
+            CircularProgressIndicator(
+              modifier = Modifier.size(15.dp),
+              color = MaterialTheme.colorScheme.background
+            )
+          }
+
+          else -> {
+            when (val state = uiState) {
+              is ProfileViewModel.UiState.Success -> {
                 Text(
-                  text = "Claim $data",
+                  text = "Claim ${state.data}",
                   style = MaterialTheme.typography.labelMedium,
                 )
                 Image(
@@ -120,56 +111,58 @@ fun ProfileScreen(
                     .padding(start = 4.dp)
                 )
               }
-          }
 
-          is ProfileViewModel.UiState.Loading -> {
-            Box(
-              contentAlignment = Alignment.Center
-            ) {
-              CircularProgressIndicator(
-                modifier = Modifier
-                  .size(15.dp),
-                color = MaterialTheme.colorScheme.background
-              )
+              ProfileViewModel.UiState.Loading -> {
+                Box(contentAlignment = Alignment.Center) {
+                  CircularProgressIndicator(
+                    modifier = Modifier.size(15.dp),
+                    color = MaterialTheme.colorScheme.background
+                  )
+                }
+              }
+
+              is ProfileViewModel.UiState.Error -> {
+                Text("Rewards unavailable")
+              }
             }
           }
-
-          else -> {}
         }
       }
     }
-    when (uiStateTx) {
+
+    when (val transactionState = uiStateTx) {
       is ProfileViewModel.UiStateTx.Send -> {
-        (uiStateTx as ProfileViewModel.UiStateTx.Send)
-          .tx.let { tx ->
-            CustomAlert(
-              tx = tx
-            )
-          }
+        CustomAlert(tx = transactionState.tx)
       }
 
       is ProfileViewModel.UiStateTx.Error -> {
-        (uiStateTx as ProfileViewModel.UiStateTx.Error)
-          .error.let { err ->
-            Toasty.error(
-              LocalContext.current,
-              err,
-              Toast.LENGTH_SHORT
-            ).show()
-          }
+        Text(
+          text = transactionState.error,
+          color = MaterialTheme.colorScheme.error,
+          style = MaterialTheme.typography.bodySmall,
+          modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+        )
       }
 
-      else -> {}
+      else -> Unit
     }
+
+    if (uiState is ProfileViewModel.UiState.Error) {
+      Text(
+        text = (uiState as ProfileViewModel.UiState.Error).error,
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+      )
+    }
+
     TabScreen(account)
   }
 }
 
 @Composable
 fun TabScreen(account: DomainAccount) {
-
   var tabIndex by remember { mutableIntStateOf(0) }
-
   val tabs = listOf("Wallet", "Staked", "Market")
 
   Column(modifier = Modifier.fillMaxWidth()) {
@@ -209,4 +202,3 @@ fun TabScreen(account: DomainAccount) {
     }
   }
 }
-

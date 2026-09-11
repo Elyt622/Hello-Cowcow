@@ -1,51 +1,36 @@
 package com.example.hellocowcow.ui.viewmodels.screen.profile
 
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
-import com.example.hellocowcow.app.module.BaseViewModel
-import com.example.hellocowcow.data.retrofit.mvxApi.request.Reward
-import com.example.hellocowcow.data.retrofit.mvxApi.request.Transaction
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.hellocowcow.core.wallet.MvxSignTransactionResultParser
+import com.example.hellocowcow.core.wallet.WalletClient
+import com.example.hellocowcow.core.wallet.WalletEvent
+import com.example.hellocowcow.data.rewards.MooveRewardDecoder
 import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.domain.models.DomainTransaction
-import com.example.hellocowcow.domain.repositories.NftRepository
+import com.example.hellocowcow.domain.models.MvxTransaction
+import com.example.hellocowcow.domain.repositories.RewardsRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
-import com.example.hellocowcow.ui.viewmodels.util.MyWalletConnect
+import com.example.hellocowcow.domain.transactions.ClaimTransactionFactory
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import com.reown.sign.client.Sign
-import com.reown.util.bytesToHex
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.ipfs.multibase.binary.Base64
-import io.reactivex.rxjava3.core.Observable
-import io.reactivex.rxjava3.kotlin.addTo
-import io.reactivex.rxjava3.kotlin.subscribeBy
-import io.reactivex.rxjava3.subjects.PublishSubject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import timber.log.Timber
-import java.math.RoundingMode
-import java.util.regex.Pattern
+import kotlinx.coroutines.launch
 import javax.inject.Inject
-
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-  private val nftRepository: NftRepository,
+  private val rewardsRepository: RewardsRepository,
   private val transactionRepository: TransactionRepository,
-  private val wc: MyWalletConnect
-) : BaseViewModel() {
+  private val walletClient: WalletClient
+) : ViewModel() {
 
-  private val _address = mutableStateOf("")
-  val address: State<String> get() = _address
+  private var pendingClaimTransaction: MvxTransaction? = null
+  private var pendingClaimRequestId: Long? = null
 
-  fun setAddress(value: String) {
-    _address.value = value
-  }
-
-  val gson: Gson = GsonBuilder().disableHtmlEscaping().create()
-  private val openDialogSubject: PublishSubject<Unit> = PublishSubject.create()
-
-  private lateinit var txRequest: Transaction
+  private val gson: Gson = GsonBuilder().disableHtmlEscaping().create()
 
   private val _uiStateTx: MutableStateFlow<UiStateTx> = MutableStateFlow(UiStateTx.NoData)
   val uiStateTx: StateFlow<UiStateTx> = _uiStateTx
@@ -55,6 +40,8 @@ class ProfileViewModel @Inject constructor(
 
   sealed class UiStateTx {
     data object NoData : UiStateTx()
+    data object AwaitingSignature : UiStateTx()
+    data object Broadcasting : UiStateTx()
     data class Send(val tx: DomainTransaction) : UiStateTx()
     data class Error(val error: String) : UiStateTx()
   }
@@ -66,170 +53,132 @@ class ProfileViewModel @Inject constructor(
   }
 
   init {
-    onClick()
+    observeWalletEvents()
   }
 
-  fun onClick() =
-    wc.dAppDelegate
-      .wcEventObservable
-      .subscribeBy(
-        onNext = { session ->
-          when (session) {
-            is Sign.Model.SessionEvent -> {
-              Timber.tag("SessionEvent")
-                .d("SessionEvent")
-            }
+  fun load(address: String) {
+    _uiState.value = UiState.Loading
 
-            is Sign.Model.SessionRequestResponse -> {
-              getSignatureAndSendRequest(
-                session.result.toString(),
-                txRequest
-              )
-              Timber.tag("SessionRequestResponse")
-                .d("SessionRequestResponse")
-            }
-
-            is Sign.Model.Error -> {
-              Timber.tag("Error")
-                .d(session.throwable)
-            }
-
-            else -> {
-              Timber.tag("Else")
-                .d("Else")
-            }
-          }
-        },
-        onError = {
-          Timber.tag("Subscribe_Error")
-            .d(it)
-        }).addTo(disposable)
-
-
-  private fun getRequest(
-    account: DomainAccount
-  ) = if (!account.isGuarded)
-    Transaction(
-      nonce = account.nonce,
-      value = "0",
-      receiver = "erd1qqqqqqqqqqqqqpgqqgzzsl0re9e3u0t3mhv3jwg6zu63zssd7yqs3uu9jk",
-      sender = account.address,
-      gasPrice = 1000000000L,
-      gasLimit = 30000000L,
-      data = "Y2xhaW1SZXdhcmRz",
-      chainID = "1",
-      version = 1
-    )
-  else {
-    Transaction(
-      nonce = account.nonce,
-      value = "0",
-      receiver = "erd1qqqqqqqqqqqqqpgqqgzzsl0re9e3u0t3mhv3jwg6zu63zssd7yqs3uu9jk",
-      sender = account.address,
-      gasPrice = 1000000000L,
-      gasLimit = 30000000L,
-      data = "Y2xhaW1SZXdhcmRz",
-      chainID = "1",
-      version = 2,
-      options = 2,
-      guardian = account.activeGuardianAddress,
-    )
+    viewModelScope.launch {
+      runCatching {
+        rewardsRepository.getUserData(address)
+      }.mapCatching(MooveRewardDecoder::decodeClaimableAmount)
+        .onSuccess { amount ->
+          _uiState.value = UiState.Success(amount.toEngineeringString())
+        }
+        .onFailure { error ->
+          _uiState.value = UiState.Error(
+            error.message ?: "Unable to load MOOVE rewards"
+          )
+        }
+    }
   }
 
-
-  fun buildClaimRewardRequest(
+  fun requestClaimRewards(
     account: DomainAccount,
     topic: String
-  ): Sign.Params.Request {
+  ) {
+    val transaction = runCatching {
+      ClaimTransactionFactory.create(account)
+    }.getOrElse { error ->
+      _uiStateTx.value = UiStateTx.Error(error.message ?: "Unable to build claim transaction")
+      return
+    }
 
-    txRequest = getRequest(account)
-    val jsonRequest = gson.toJson(txRequest)
+    pendingClaimTransaction = transaction
+    pendingClaimRequestId = null
+    _uiStateTx.value = UiStateTx.AwaitingSignature
 
-    return Sign.Params.Request(
+    walletClient.requestTransactionSignature(
       sessionTopic = topic,
-      method = "mvx_signTransaction",
-      chainId = "mvx:1",
-      params = """{"transaction":$jsonRequest}"""
+      paramsJson = gson.toJson(mapOf("transaction" to transaction)),
+      onSent = { requestId ->
+        pendingClaimRequestId = requestId
+      },
+      onError = { message ->
+        failClaim(message)
+      }
     )
   }
 
-  private fun getSignatureAndSendRequest(
-    response: String,
-    txRequest: Transaction
-  ): Observable<Unit> {
+  private fun observeWalletEvents() {
+    viewModelScope.launch {
+      walletClient.events.collect { event ->
+        when (event) {
+          is WalletEvent.TransactionSignatureResult -> {
+            handleTransactionSignatureResult(event)
+          }
 
-    val signatureRegex = """signature=([a-fA-F0-9]+)""".toRegex()
-    val guardianSignatureRegex = """guardianSignature=([a-fA-F0-9]+)""".toRegex()
+          is WalletEvent.TransactionSignatureError -> {
+            if (matchesPendingRequest(event.requestId)) {
+              failClaim("xPortal rejected the transaction: ${event.message}")
+            }
+          }
 
-    val signatureResult = signatureRegex.find(response)
-    val guardianSignatureResult = guardianSignatureRegex.find(response)
+          is WalletEvent.RequestExpired -> {
+            if (matchesPendingRequest(event.requestId)) {
+              failClaim("The xPortal signing request expired")
+            }
+          }
 
-    val signature = signatureResult?.groups?.get(1)?.value
-    val guardianSignature = guardianSignatureResult?.groups?.get(1)?.value
-
-    if (signature != null) {
-      txRequest.signature = signature
-      txRequest.guardianSignature = guardianSignature.toString()
-      transactionRepository.sendTransaction(txRequest)
-        .subscribeBy(
-          onNext = { tx ->
-            _uiStateTx.value = UiStateTx.Send(tx)
-          },
-          onError = { err ->
-            _uiStateTx.value = UiStateTx.Error(err.message.toString())
-          }).addTo(disposable)
-
-    } else {
-      println("Signature not found")
-    }
-    return openDialogSubject
-  }
-
-  fun getUnclaimedMooveForUser() {
-    getAllDataForUser()
-      .map { base64Data -> extractData(base64Data) }
-      .map { hex -> hex.toBigInteger(16).toBigDecimal(18) }
-      .map { decimalValue -> decimalValue.setScale(4, RoundingMode.HALF_UP) }
-      .subscribeBy(
-        onNext = { data ->
-          _uiState.value = UiState.Success(data.toEngineeringString())
-        },
-        onError = { error ->
-          _uiState.value = UiState.Error(error.message.toString())
+          is WalletEvent.ConnectionError -> {
+            if (pendingClaimTransaction != null) {
+              failClaim(event.message)
+            }
+          }
         }
-      ).addTo(disposable)
-  }
-
-  private fun extractData(
-    base64Data: String
-  ): String {
-    var matchedValue = ""
-    val regex =
-      "B[0-9w-z+/][A-Za-z0-9+/]{8}A|C[A-P][A-Za-z0-9+/]{9}AA|C[Q-Za-f][A-Za-z0-9+/]{10}AA|C[g-v][A-Za-z0-9+/]{11}AA"
-    val dataLength = base64Data.length
-    val matches = Pattern
-      .compile(regex)
-      .matcher(base64Data.substring(dataLength - 35, dataLength))
-    if (matches.find()) {
-      matchedValue = matches.group()
+      }
     }
-    return Base64
-      .decodeBase64(matchedValue)
-      .bytesToHex()
-      .substring(2)
   }
 
-  private fun getAllDataForUser()
-      : Observable<String> =
-    nftRepository.getAllDataUsers(
-      Reward(
-        "erd1qqqqqqqqqqqqqpgqqgzzsl0re9e3u0t3mhv3jwg6zu63zssd7yqs3uu9jk",
-        "getAllDataForUser",
-        "0",
-        arrayListOf(),
-        address.value
-      )
-    ).map { it.returnData[0] }
+  private fun handleTransactionSignatureResult(
+    event: WalletEvent.TransactionSignatureResult
+  ) {
+    val transaction = pendingClaimTransaction ?: return
+    if (!matchesPendingRequest(event.requestId)) return
+
+    MvxSignTransactionResultParser.parse(event.payload)
+      .onSuccess { walletResult ->
+        broadcast(walletResult.applyTo(transaction))
+      }
+      .onFailure { error ->
+        failClaim(error.message ?: "Invalid response from xPortal")
+      }
+  }
+
+  private fun matchesPendingRequest(requestId: Long): Boolean {
+    val expectedRequestId = pendingClaimRequestId
+    return pendingClaimTransaction != null &&
+        (expectedRequestId == null || expectedRequestId == requestId)
+  }
+
+  private fun broadcast(transaction: MvxTransaction) {
+    if (transaction.signature.isNullOrBlank()) {
+      failClaim("xPortal did not return a transaction signature")
+      return
+    }
+
+    _uiStateTx.value = UiStateTx.Broadcasting
+
+    viewModelScope.launch {
+      runCatching {
+        transactionRepository.sendTransaction(transaction)
+      }.onSuccess { tx ->
+        clearPendingClaim()
+        _uiStateTx.value = UiStateTx.Send(tx)
+      }.onFailure { error ->
+        failClaim(error.message ?: "Unable to broadcast transaction")
+      }
+    }
+  }
+
+  private fun failClaim(message: String) {
+    clearPendingClaim()
+    _uiStateTx.value = UiStateTx.Error(message)
+  }
+
+  private fun clearPendingClaim() {
+    pendingClaimTransaction = null
+    pendingClaimRequestId = null
+  }
 }
-
-

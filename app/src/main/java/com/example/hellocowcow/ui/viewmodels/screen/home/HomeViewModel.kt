@@ -1,6 +1,7 @@
 package com.example.hellocowcow.ui.viewmodels.screen.home
 
 import com.example.hellocowcow.app.module.BaseViewModel
+import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.data.retrofit.proxyXoxnoApi.Resources
 import com.example.hellocowcow.domain.repositories.NftRepository
 import com.example.hellocowcow.domain.repositories.TokenRepository
@@ -52,19 +53,17 @@ class HomeViewModel @Inject constructor(
 
   private fun getSomeStats() =
     Observable.zip(
-      tokenRepository.getToken("MOOVE-875539").toObservable(),
+      tokenRepository.getToken(CowCowConfig.MOOVE_TOKEN_ID).toObservable(),
       nftRepository.getStakingCowsCount().toObservable(),
-      nftRepository.getStatsCollection(
-        "COW-cd463d"
-      ).map { it.pageProps!! }
+      nftRepository.getStatsCollection(CowCowConfig.COLLECTION_ID)
     ) { token, stakingCount, statsCowCollection ->
       SomeStats(
         moovePrice = token.price,
         mooveMC = token.marketCap,
         stakedCount = stakingCount.toString(),
-        listedCount = statsCowCollection.listedNFTs.toString(),
-        floorPrice = statsCowCollection.fallBackFloor.toString(),
-        totalEgldVolume = statsCowCollection.profileFallback?.statistics?.tradeData?.totalEgldVolume
+        listedCount = statsCowCollection.listedCount.toString(),
+        floorPrice = statsCowCollection.floorPrice.toString(),
+        totalEgldVolume = statsCowCollection.totalVolume
       )
     }.subscribeBy(
       onNext = {

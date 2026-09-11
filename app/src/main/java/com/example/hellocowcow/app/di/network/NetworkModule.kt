@@ -15,7 +15,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
-
 @InstallIn(SingletonComponent::class)
 @Module
 object NetworkModule {
@@ -29,7 +28,7 @@ object NetworkModule {
 
   @Provides
   @Singleton
-  fun provideMvxApi() : MvxApi =
+  fun provideMvxApi(): MvxApi =
     Retrofit.Builder()
       .baseUrl("https://api.multiversx.com/")
       .client(httpClient)
@@ -49,9 +48,9 @@ object NetworkModule {
 
   @Provides
   @Singleton
-  fun provideXoxnoApi() : XoxnoApi =
+  fun provideXoxnoApi(): XoxnoApi =
     Retrofit.Builder()
-      .baseUrl("https://xoxno.com/")
+      .baseUrl("https://api.xoxno.com/")
       .client(httpClient)
       .addConverterFactory(GsonConverterFactory.create(GsonBuilder().create()))
       .addCallAdapterFactory(RxJava3CallAdapterFactory.create())

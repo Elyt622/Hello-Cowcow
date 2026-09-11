@@ -22,8 +22,6 @@ import com.example.hellocowcow.ui.theme.HelloCowCowTheme
 import com.example.hellocowcow.ui.viewmodels.activity.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import es.dmoral.toasty.Toasty
-import timber.log.Timber
-import timber.log.Timber.Forest.plant
 
 @AndroidEntryPoint
 class MainActivity : BaseActivity() {
@@ -34,8 +32,6 @@ class MainActivity : BaseActivity() {
   private lateinit var topic: String
 
   override fun onCreate(savedInstanceState: Bundle?) {
-    plant(Timber.DebugTree())
-
     super.onCreate(savedInstanceState)
     address = intent.getStringExtra("ADDRESS").toString()
     topic = intent.getStringExtra("TOPIC").toString()
