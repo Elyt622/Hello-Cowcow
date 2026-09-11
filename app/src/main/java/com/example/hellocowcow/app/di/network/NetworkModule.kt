@@ -21,33 +21,10 @@ import javax.inject.Singleton
 object NetworkModule {
 
   private const val customTimeout = 6L
-  private const val maxRateLimitRetries = 2
 
   private val httpClient = OkHttpClient.Builder()
     .connectTimeout(customTimeout, TimeUnit.SECONDS)
     .retryOnConnectionFailure(true)
-    .addInterceptor { chain ->
-      var request = chain.request()
-      var response = chain.proceed(request)
-      var retryCount = 0
-
-      while (response.code == 429 && retryCount < maxRateLimitRetries) {
-        val retryAfterSeconds = response.header("Retry-After")
-          ?.toLongOrNull()
-          ?.coerceIn(0L, 3L)
-        val delayMillis = retryAfterSeconds
-          ?.times(1_000L)
-          ?: 750L * (retryCount + 1)
-
-        response.close()
-        if (delayMillis > 0L) Thread.sleep(delayMillis)
-
-        retryCount += 1
-        response = chain.proceed(request)
-      }
-
-      response
-    }
     .build()
 
   @Provides
