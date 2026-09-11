@@ -1,5 +1,6 @@
 package com.example.hellocowcow.data.recovery
 
+import com.example.hellocowcow.domain.recovery.CowCowNonceCodec
 import java.util.Base64
 
 object CowCowUserDataDecoder {
@@ -26,9 +27,8 @@ object CowCowUserDataDecoder {
     return buildList(count) {
       repeat(count) { index ->
         val start = 4 + index * 4
-        val nonce = hex.substring(start, start + 4)
-        require(nonce != "0000") { "CowCow user data contains an invalid zero nonce" }
-        add(nonce)
+        val fixedWidthNonce = hex.substring(start, start + 4)
+        add(CowCowNonceCodec.normalize(fixedWidthNonce))
       }
     }
   }
