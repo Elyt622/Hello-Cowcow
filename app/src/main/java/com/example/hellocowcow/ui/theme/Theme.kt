@@ -12,35 +12,45 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-  primary = CustomYellow,
-  onPrimary = Color.White,
-  secondary = unselectedCustomYellow,
-  tertiary = unselectedCustomRed,
-  background = CustomRed
+  primary = CowDarkPrimary,
+  onPrimary = CowDarkOnPrimary,
+  primaryContainer = CowDarkPrimaryContainer,
+  onPrimaryContainer = CowDarkOnPrimaryContainer,
+  secondary = CowDarkSecondary,
+  onSecondary = Color(0xFF3E3300),
+  secondaryContainer = CowDarkSecondaryContainer,
+  onSecondaryContainer = CowDarkOnSecondaryContainer,
+  background = CowDarkBackground,
+  onBackground = CowDarkOnSurface,
+  surface = CowDarkSurface,
+  onSurface = CowDarkOnSurface,
+  surfaceVariant = CowDarkSurfaceVariant,
+  onSurfaceVariant = CowDarkOnSurfaceVariant,
+  outline = CowDarkOutline
 )
 
 private val LightColorScheme = lightColorScheme(
   primary = CustomRed,
-  onPrimary = Color.Black,
-  secondary = unselectedCustomRed,
-  tertiary = unselectedCustomYellow,
-  background = CustomYellow
-
-  /* Other default colors to override
-  surface = Color(0xFFFFFBFE),
   onPrimary = Color.White,
+  primaryContainer = CowLightPrimaryContainer,
+  onPrimaryContainer = CowLightOnPrimaryContainer,
+  secondary = CowLightSecondary,
   onSecondary = Color.White,
-  onTertiary = Color.White,
-  onBackground = Color(0xFF1C1B1F),
-  onSurface = Color(0xFF1C1B1F),
-  */
+  secondaryContainer = CowLightSecondaryContainer,
+  onSecondaryContainer = CowLightOnSecondaryContainer,
+  background = CowLightBackground,
+  onBackground = CowLightOnSurface,
+  surface = CowLightSurface,
+  onSurface = CowLightOnSurface,
+  surfaceVariant = CowLightSurfaceVariant,
+  onSurfaceVariant = CowLightOnSurfaceVariant,
+  outline = CowLightOutline
 )
 
 @Composable
 fun HelloCowCowTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
-  // Dynamic color is available on Android 12+
-  dynamicColor: Boolean = true,
+  dynamicColor: Boolean = false,
   content: @Composable () -> Unit
 ) {
   val colorScheme = when {
