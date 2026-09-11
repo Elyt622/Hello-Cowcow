@@ -25,9 +25,9 @@ class RecoveryDexQuoteRepositoryImpl @Inject constructor(
     }
 
     val mooveAtomic = toAtomic(mooveAmount)
-    val tolerance = tolerancePercentage
-      .divide(BigDecimal("100"), 8, RoundingMode.HALF_UP)
-      .toDouble()
+    val toleranceFraction = tolerancePercentage
+      .divide(BigDecimal("100"), 18, RoundingMode.HALF_UP)
+    val tolerance = toleranceFraction.toDouble()
 
     val buy = fetchRoute(
       XExchangeSwapVariables(
@@ -50,9 +50,14 @@ class RecoveryDexQuoteRepositoryImpl @Inject constructor(
     val buyCostEgld = fromAtomic(buy.amountIn)
     val expectedSellAtomic = sell.smartSwap?.amountOut ?: sell.amountOut
     val expectedSellReturnEgld = fromAtomic(expectedSellAtomic)
-    val minimumSellReturnEgld = expectedSellReturnEgld
-      .multiply(BigDecimal.ONE.subtract(BigDecimal(tolerance.toString())))
-      .max(BigDecimal.ZERO)
+
+    // Matches @multiversx/sdk-dapp-swap calculateMinimumReceived() for
+    // fixed-input swaps: atomic minimum = output / (1 + tolerance), rounded
+    // to the nearest atomic unit before display formatting.
+    val minimumSellAtomic = BigDecimal(expectedSellAtomic)
+      .divide(BigDecimal.ONE.add(toleranceFraction), 0, RoundingMode.HALF_UP)
+      .toPlainString()
+    val minimumSellReturnEgld = fromAtomic(minimumSellAtomic)
 
     return RecoveryDexQuote(
       mooveAmount = mooveAmount,
