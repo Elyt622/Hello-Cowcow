@@ -1,22 +1,25 @@
 package com.example.hellocowcow.ui.screen.profile.tabs
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.example.hellocowcow.domain.models.DomainNft
 import com.example.hellocowcow.ui.composables.NftCard
@@ -175,11 +179,46 @@ internal fun PortfolioNftGrid(
 
 @Composable
 internal fun PortfolioLoadingState() {
-  Box(
+  LazyVerticalGrid(
     modifier = Modifier.fillMaxSize(),
-    contentAlignment = Alignment.Center
+    columns = GridCells.Adaptive(150.dp),
+    contentPadding = PaddingValues(16.dp),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-    CircularProgressIndicator()
+    items(6) {
+      Column(
+        modifier = Modifier
+          .clip(RoundedCornerShape(14.dp))
+          .background(MaterialTheme.colorScheme.surfaceVariant)
+      ) {
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+        )
+        Column(
+          modifier = Modifier.padding(10.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          Box(
+            modifier = Modifier
+              .fillMaxWidth(0.72f)
+              .height(14.dp)
+              .clip(RoundedCornerShape(6.dp))
+              .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+          )
+          Box(
+            modifier = Modifier
+              .fillMaxWidth(0.46f)
+              .height(10.dp)
+              .clip(RoundedCornerShape(6.dp))
+              .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+          )
+        }
+      }
+    }
   }
 }
 
