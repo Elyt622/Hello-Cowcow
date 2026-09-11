@@ -15,24 +15,37 @@ class RecoveryHistoryRepositoryImpl @Inject constructor(
   override suspend fun getPendingUnbondBatches(address: String): List<RecoveryUnbondBatch> {
     require(address.isNotBlank()) { "Wallet address is required to rebuild Recovery history" }
 
-    val unstakeTransactions = mvxApi.getTransactionsByFunction(
-      sender = address,
-      receiver = CowCowConfig.REWARDS_CONTRACT,
-      function = CowCowConfig.UNSTAKE_FUNCTION,
-      size = HISTORY_PAGE_SIZE
-    ).filter(::isSuccessfulCowCowCall)
-
-    val finalClaimTransactions = mvxApi.getTransactionsByFunction(
-      sender = address,
-      receiver = CowCowConfig.REWARDS_CONTRACT,
-      function = CowCowConfig.FINAL_CLAIM_FUNCTION,
-      size = HISTORY_PAGE_SIZE
-    ).filter(::isSuccessfulCowCowCall)
+    val unstakeTransactions = loadCompleteHistory(
+      address = address,
+      function = CowCowConfig.UNSTAKE_FUNCTION
+    )
+    val finalClaimTransactions = loadCompleteHistory(
+      address = address,
+      function = CowCowConfig.FINAL_CLAIM_FUNCTION
+    )
 
     return RecoveryHistoryMatcher.pendingBatches(
       unstakeTransactions = unstakeTransactions,
       finalClaimTransactions = finalClaimTransactions
     )
+  }
+
+  private suspend fun loadCompleteHistory(
+    address: String,
+    function: String
+  ): List<Transactions> {
+    val transactions = mvxApi.getTransactionsByFunction(
+      sender = address,
+      receiver = CowCowConfig.REWARDS_CONTRACT,
+      function = function,
+      size = HISTORY_PAGE_SIZE
+    )
+
+    check(transactions.size < HISTORY_PAGE_SIZE) {
+      "CowCow $function history reached the $HISTORY_PAGE_SIZE-transaction read limit; Recovery cannot prove that the reconstructed exit state is complete"
+    }
+
+    return transactions.filter(::isSuccessfulCowCowCall)
   }
 
   private fun isSuccessfulCowCowCall(transaction: Transactions): Boolean {
@@ -41,9 +54,10 @@ class RecoveryHistoryRepositoryImpl @Inject constructor(
   }
 
   private companion object {
-    // MultiversX API list endpoints allow large page sizes up to the endpoint
-    // complexity ceiling. One thousand is enough to avoid silently truncating a
-    // normal wallet's CowCow history while keeping this to one request per method.
+    // MultiversX API list endpoints support much larger result sets, but keeping
+    // this request bounded protects the screen from unexpectedly heavy history
+    // reads. If the bound is ever hit we fail closed instead of treating a
+    // potentially truncated history as authoritative.
     const val HISTORY_PAGE_SIZE = 1000
   }
 }
