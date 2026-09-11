@@ -6,6 +6,7 @@ data class RecoverySnapshot(
   val claimableRewards: BigDecimal,
   val walletMooveBalance: BigDecimal,
   val contractMooveBalance: BigDecimal,
+  val claimLiquidityGap: BigDecimal,
   val amountToAcquire: BigDecimal,
   val recommendedTopUp: BigDecimal
 )
