@@ -79,6 +79,35 @@ class TransactionCostRepositoryImplTest {
   }
 
   @Test
+  fun `rejects configured gas price below current network minimum`() = runTest {
+    val repository = TransactionCostRepositoryImpl(
+      FakeGatewayApi(
+        gasUnits = 300_000L,
+        modifier = BigDecimal("0.01"),
+        minGasPrice = 1_000_000_001L
+      )
+    )
+    val transaction = MvxTransaction(
+      nonce = 7,
+      value = "0",
+      receiver = "erd1contract",
+      sender = "erd1sender",
+      gasPrice = 1_000_000_000L,
+      gasLimit = 30_000_000L,
+      data = Base64.getEncoder().encodeToString("claimRewards".toByteArray()),
+      chainID = "1",
+      version = 1
+    )
+
+    val error = runCatching {
+      repository.estimateFee(transaction)
+    }.exceptionOrNull()
+
+    assertTrue(error is IllegalStateException)
+    assertTrue(error?.message.orEmpty().contains("below current MultiversX minimum"))
+  }
+
+  @Test
   fun `falls back to configured gas limit when live estimate fails`() = runTest {
     val api = FakeGatewayApi(
       gasUnits = null,
@@ -146,7 +175,8 @@ class TransactionCostRepositoryImplTest {
 
   private class FakeGatewayApi(
     private val gasUnits: Long?,
-    private val modifier: BigDecimal
+    private val modifier: BigDecimal,
+    private val minGasPrice: Long = 1_000_000_000L
   ) : MvxGatewayApi {
 
     override suspend fun getProcessStatus(txHash: String) =
@@ -173,7 +203,7 @@ class TransactionCostRepositoryImplTest {
         data = NetworkConfigData(
           config = NetworkConfig(
             minGasLimit = 50_000L,
-            minGasPrice = 1_000_000_000L,
+            minGasPrice = minGasPrice,
             gasPerDataByte = 1_500L,
             gasPriceModifier = modifier,
             denomination = 18
