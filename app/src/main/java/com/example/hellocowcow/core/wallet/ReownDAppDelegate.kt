@@ -38,6 +38,21 @@ internal object ReownDAppDelegate : SignClient.DappDelegate {
   override fun onSessionApproved(
     approvedSession: Sign.Model.ApprovedSession
   ) {
+    val session = walletSession(
+      topic = approvedSession.topic,
+      accounts = approvedSession.accounts
+    )
+
+    if (session != null) {
+      emit(WalletEvent.SessionApproved(session))
+    } else {
+      emit(
+        WalletEvent.ConnectionError(
+          "xPortal approved the session without a MultiversX account"
+        )
+      )
+    }
+
     Timber.tag("Session_Approved")
       .d("Approved session's topic is: %s", approvedSession.topic)
   }
@@ -45,6 +60,7 @@ internal object ReownDAppDelegate : SignClient.DappDelegate {
   override fun onSessionRejected(
     rejectedSession: Sign.Model.RejectedSession
   ) {
+    emit(WalletEvent.ConnectionError(rejectedSession.reason))
     Timber.tag("Session_Rejected").d(rejectedSession.reason)
   }
 
@@ -77,6 +93,14 @@ internal object ReownDAppDelegate : SignClient.DappDelegate {
   override fun onSessionDelete(
     deletedSession: Sign.Model.DeletedSession
   ) {
+    when (deletedSession) {
+      is Sign.Model.DeletedSession.Success -> emit(WalletEvent.SessionDisconnected)
+      is Sign.Model.DeletedSession.Error -> emit(
+        WalletEvent.ConnectionError(
+          deletedSession.error.message ?: "Wallet session was deleted"
+        )
+      )
+    }
     Timber.tag("Session_Deleted").d(deletedSession.toString())
   }
 
