@@ -68,7 +68,7 @@ class RecoveryViewModel @Inject constructor(
     data class Success(
       val quote: RecoveryDexQuote?,
       val estimate: RecoveryCostEstimate,
-      val networkFees: RecoveryNetworkFeeEstimate?
+      val networkFees: RecoveryNetworkFeeEstimate
     ) : CostUiState
     data class Unavailable(val message: String) : CostUiState
   }
@@ -163,7 +163,12 @@ class RecoveryViewModel @Inject constructor(
     viewModelScope.launch {
       val networkFees = runCatching {
         estimateNetworkFees(snapshot, account)
-      }.getOrNull()
+      }.getOrElse { error ->
+        _costState.value = CostUiState.Unavailable(
+          error.message ?: "Live MultiversX network fee estimate unavailable"
+        )
+        return@launch
+      }
 
       val quoteResult = if (snapshot.amountToAcquire > BigDecimal.ZERO) {
         runCatching {
@@ -183,8 +188,8 @@ class RecoveryViewModel @Inject constructor(
               buyCostEgld = quote?.buyCostEgld ?: BigDecimal.ZERO,
               expectedSellReturnEgld = quote?.expectedSellReturnEgld ?: BigDecimal.ZERO,
               minimumSellReturnEgld = quote?.minimumSellReturnEgld ?: BigDecimal.ZERO,
-              estimatedNetworkFeesEgld = networkFees?.totalFeeEgld ?: BigDecimal.ZERO,
-              maximumNetworkFeesEgld = networkFees?.maxTotalFeeEgld ?: BigDecimal.ZERO
+              estimatedNetworkFeesEgld = networkFees.totalFeeEgld,
+              maximumNetworkFeesEgld = networkFees.maxTotalFeeEgld
             )
           )
           _costState.value = CostUiState.Success(
