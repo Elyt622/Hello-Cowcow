@@ -13,7 +13,6 @@ import java.util.Base64
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -71,9 +70,12 @@ class TransactionCostRepositoryImplTest {
       version = 1
     )
 
-    assertThrows(IllegalStateException::class.java) {
-      runTest { repository.estimateFee(transaction) }
-    }
+    val error = runCatching {
+      repository.estimateFee(transaction)
+    }.exceptionOrNull()
+
+    assertTrue(error is IllegalStateException)
+    assertTrue(error?.message.orEmpty().contains("exceeds configured gas limit"))
   }
 
   @Test
