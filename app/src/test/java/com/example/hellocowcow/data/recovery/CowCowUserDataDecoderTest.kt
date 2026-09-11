@@ -11,7 +11,7 @@ class CowCowUserDataDecoderTest {
   fun `preserves four digit CowCow nonce encoding`() {
     val bytes = byteArrayOf(
       0x00, 0x04,
-      0x07, 0x88,
+      0x07, 0x88.toByte(),
       0x0e, 0xb2.toByte(),
       0x26, 0x7e,
       0x0f, 0xde.toByte(),
@@ -35,7 +35,7 @@ class CowCowUserDataDecoderTest {
   @Test
   fun `truncated stake data is rejected`() {
     val encoded = Base64.getEncoder().encodeToString(
-      byteArrayOf(0x00, 0x02, 0x07, 0x88)
+      byteArrayOf(0x00, 0x02, 0x07, 0x88.toByte())
     )
 
     assertThrows(IllegalArgumentException::class.java) {
