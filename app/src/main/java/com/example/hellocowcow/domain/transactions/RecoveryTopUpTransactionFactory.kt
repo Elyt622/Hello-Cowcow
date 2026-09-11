@@ -31,7 +31,8 @@ object RecoveryTopUpTransactionFactory {
     }
 
     val tokenHex = CowCowConfig.MOOVE_TOKEN_ID.toHexUtf8()
-    val amountHex = atomicAmount.toString(16)
+    val rawAmountHex = atomicAmount.toString(16)
+    val amountHex = if (rawAmountHex.length % 2 == 0) rawAmountHex else "0$rawAmountHex"
     val payload = "ESDTTransfer@$tokenHex@$amountHex"
     val dataBase64 = Base64.getEncoder().encodeToString(
       payload.toByteArray(StandardCharsets.UTF_8)
