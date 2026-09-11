@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QueryStats
@@ -30,9 +31,11 @@ import com.example.hellocowcow.ui.screen.home.HomeScreen
 import com.example.hellocowcow.ui.screen.nft.NftScreen
 import com.example.hellocowcow.ui.screen.portfolio.ConnectWalletScreen
 import com.example.hellocowcow.ui.screen.profile.ProfileScreen
+import com.example.hellocowcow.ui.screen.recovery.RecoveryScreen
 import com.example.hellocowcow.ui.screen.stats.StatsScreen
 import com.example.hellocowcow.ui.viewmodels.activity.MainViewModel
 import com.example.hellocowcow.ui.viewmodels.screen.nft.NftViewModel
+import com.example.hellocowcow.ui.viewmodels.screen.recovery.RecoveryViewModel
 
 private data class TopLevelItem(
   val destination: AppDestination,
@@ -43,7 +46,8 @@ private data class TopLevelItem(
 private val topLevelItems = listOf(
   TopLevelItem(ExploreDestination, "Explore", Icons.Filled.Home),
   TopLevelItem(CollectionDestination, "Collection", Icons.Filled.QueryStats),
-  TopLevelItem(PortfolioDestination, "Portfolio", Icons.Filled.Person)
+  TopLevelItem(PortfolioDestination, "Portfolio", Icons.Filled.Person),
+  TopLevelItem(RecoveryDestination, "Recovery", Icons.Filled.Build)
 )
 
 private val topLevelDestinations = topLevelItems.map { it.destination }.toSet()
@@ -132,6 +136,14 @@ fun AppShell(
           )
         }
 
+        entry<RecoveryDestination> {
+          RecoveryContent(
+            walletState = walletState,
+            onConnectWallet = onConnectWallet,
+            onRetryWallet = onRetryWallet
+          )
+        }
+
         entry<NftDetailDestination> { destination ->
           NftScreen(
             identifier = destination.identifier,
@@ -153,7 +165,7 @@ private fun PortfolioContent(
 ) {
   when (walletState) {
     MainViewModel.WalletUiState.CheckingSession,
-    is MainViewModel.WalletUiState.LoadingAccount -> PortfolioLoading()
+    is MainViewModel.WalletUiState.LoadingAccount -> WalletGateLoading("Loading portfolio…")
 
     MainViewModel.WalletUiState.Disconnected -> ConnectWalletScreen(
       connecting = false,
@@ -182,7 +194,43 @@ private fun PortfolioContent(
 }
 
 @Composable
-private fun PortfolioLoading() {
+private fun RecoveryContent(
+  walletState: MainViewModel.WalletUiState,
+  onConnectWallet: () -> Unit,
+  onRetryWallet: () -> Unit
+) {
+  when (walletState) {
+    MainViewModel.WalletUiState.CheckingSession,
+    is MainViewModel.WalletUiState.LoadingAccount -> WalletGateLoading("Loading recovery tools…")
+
+    MainViewModel.WalletUiState.Disconnected -> ConnectWalletScreen(
+      connecting = false,
+      primaryLabel = "Connect xPortal for recovery",
+      onPrimaryAction = onConnectWallet
+    )
+
+    MainViewModel.WalletUiState.Connecting -> ConnectWalletScreen(
+      connecting = true,
+      primaryLabel = "Connect xPortal for recovery",
+      onPrimaryAction = onConnectWallet
+    )
+
+    is MainViewModel.WalletUiState.Connected -> RecoveryScreen(
+      address = walletState.account.address,
+      viewModel = hiltViewModel<RecoveryViewModel>()
+    )
+
+    is MainViewModel.WalletUiState.Error -> ConnectWalletScreen(
+      connecting = false,
+      errorMessage = walletState.message,
+      primaryLabel = "Retry recovery connection",
+      onPrimaryAction = onRetryWallet
+    )
+  }
+}
+
+@Composable
+private fun WalletGateLoading(message: String) {
   Box(
     modifier = Modifier.fillMaxSize(),
     contentAlignment = Alignment.Center
@@ -193,7 +241,7 @@ private fun PortfolioLoading() {
     ) {
       CircularProgressIndicator()
       Text(
-        text = "Loading portfolio…",
+        text = message,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
