@@ -74,13 +74,17 @@ Observed mainnet execution on 2026-07-20 14:25:24 UTC:
 - processing log reports gas used: `11459521`
 - transaction fee shown by Explorer: `0.002786625 EGLD`
 
-The same four nonces were unstaked in the transaction above and then claimed successfully 7 days, 46 minutes and 48 seconds later.
+The same four nonces were unstaked in the transaction above and then claimed successfully exactly 7 days, 46 minutes and 48 seconds later.
 
-The earliest claimable time used by Recovery is therefore modeled as:
+### Timing boundary
 
-`unstake timestamp + 7 days`
+This transaction proves that the final claim was accepted after `7d 46m 48s`. It does **not** by itself prove that the deployed contract's exact minimum is seven days, because no failed/earlier boundary transaction or verified ABI/source has been recovered yet.
 
-The historical successful claim happened 46 minutes and 48 seconds after that minimum boundary; this evidence does not imply that the extra 46 minutes were required.
+Recovery therefore uses the observed successful delay itself as a conservative evidence threshold:
+
+`unstake timestamp + 7 days + 46 minutes + 48 seconds`
+
+This threshold is deliberately conservative. If the deployed ABI/source or a successful transaction closer to the true boundary is recovered later, the model can be tightened without changing the historical transaction evidence.
 
 ## Verified Recovery sequence
 
@@ -89,7 +93,7 @@ The historical evidence supports this sequence:
 1. `claimRewards` to recover the existing MOOVE reward balance independently;
 2. optionally recover or swap temporary liquidity after that claim;
 3. `unstake@<cow nonce>...` to move CowCows into the unbonding phase and receive any newly accrued MOOVE;
-4. wait at least seven days;
+4. wait until at least the conservative observed-successful delay has elapsed;
 5. `claim@<cow nonce>...` to transfer the CowCow NFTs back to the wallet.
 
-Recovery reconstructs pending unbond batches from successful on-chain `unstake` and `claim` history so the waiting state does not depend only on local application storage.
+Recovery reconstructs pending exit batches from successful on-chain `unstake` and `claim` history so the waiting state does not depend only on local application storage.
