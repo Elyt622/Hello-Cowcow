@@ -125,14 +125,14 @@ private fun WalletIdentityCard(account: DomainAccount) {
     ) {
       Surface(
         shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.background
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.primary
       ) {
-        Image(
-          imageVector = ImageVector.vectorResource(id = R.drawable.xportal),
-          contentDescription = "xPortal",
-          modifier = Modifier
-            .padding(7.dp)
-            .size(22.dp)
+        Text(
+          text = "xP",
+          modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
+          style = MaterialTheme.typography.labelLarge,
+          fontWeight = FontWeight.Bold
         )
       }
 
