@@ -61,13 +61,13 @@ fun NftCard(
         Surface(
           modifier = Modifier
             .align(Alignment.TopEnd)
-            .padding(8.dp),
-          shape = RoundedCornerShape(100.dp),
+            .padding(7.dp),
+          shape = RoundedCornerShape(8.dp),
           color = MaterialTheme.colorScheme.secondaryContainer,
           contentColor = MaterialTheme.colorScheme.onSecondaryContainer
         ) {
           Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(3.dp)
           ) {
@@ -78,16 +78,35 @@ fun NftCard(
             )
             Text(
               text = "Upgraded",
-              style = MaterialTheme.typography.labelSmall
+              style = MaterialTheme.typography.labelSmall,
+              fontWeight = FontWeight.Bold
             )
           }
+        }
+      }
+
+      if (nft.onSale == true) {
+        Surface(
+          modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(7.dp),
+          shape = RoundedCornerShape(8.dp),
+          color = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary
+        ) {
+          Text(
+            text = "Listed",
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold
+          )
         }
       }
     }
 
     Column(
-      modifier = Modifier.padding(horizontal = 11.dp, vertical = 10.dp),
-      verticalArrangement = Arrangement.spacedBy(3.dp)
+      modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+      verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
       Text(
         text = nft.name ?: nft.identifier ?: "CowCow",
@@ -97,31 +116,13 @@ fun NftCard(
         overflow = TextOverflow.Ellipsis
       )
 
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Text(
-          text = nft.metadata?.rarity?.rank?.let { "Rank #$it" } ?: "CowCow",
-          style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        if (nft.onSale == true) {
-          Surface(
-            shape = RoundedCornerShape(100.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-          ) {
-            Text(
-              text = "Listed",
-              modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-              style = MaterialTheme.typography.labelSmall
-            )
-          }
-        }
-      }
+      Text(
+        text = nft.metadata?.rarity?.rank?.let { "Rank #$it" } ?: nft.identifier.orEmpty(),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
     }
   }
 }
