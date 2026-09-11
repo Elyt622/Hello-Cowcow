@@ -2,7 +2,6 @@ package com.example.hellocowcow.app.di.network
 
 import com.example.hellocowcow.data.network.api.MvxApi
 import com.example.hellocowcow.data.network.api.MvxGatewayApi
-import com.example.hellocowcow.data.network.api.ProxyXoxnoApi
 import com.example.hellocowcow.data.network.api.XExchangeQuoteApi
 import com.example.hellocowcow.data.network.api.XoxnoApi
 import com.google.gson.GsonBuilder
@@ -55,16 +54,6 @@ object NetworkModule {
       .client(httpClient)
       .addConverterFactory(GsonConverterFactory.create(GsonBuilder().create()))
       .build().create(XExchangeQuoteApi::class.java)
-
-  @Provides
-  @Singleton
-  fun provideProxyXoxnoApi(): ProxyXoxnoApi =
-    Retrofit.Builder()
-      .baseUrl("https://api.xoxno.com/")
-      .client(httpClient)
-      .addConverterFactory(GsonConverterFactory.create(GsonBuilder().create()))
-      .addCallAdapterFactory(RxJava3CallAdapterFactory.create())
-      .build().create(ProxyXoxnoApi::class.java)
 
   @Provides
   @Singleton
