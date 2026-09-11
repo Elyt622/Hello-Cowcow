@@ -4,6 +4,7 @@ import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.data.network.api.MvxApi
 import com.example.hellocowcow.data.rewards.MooveRewardDecoder
 import com.example.hellocowcow.domain.models.RecoverySnapshot
+import com.example.hellocowcow.domain.recovery.RecoveryPlanCalculator
 import com.example.hellocowcow.domain.repositories.RecoveryRepository
 import com.example.hellocowcow.domain.repositories.RewardsRepository
 import java.math.BigDecimal
@@ -23,19 +24,11 @@ class RecoveryRepositoryImpl @Inject constructor(
     )
     val walletBalance = getMooveBalance(address)
     val contractBalance = getMooveBalance(CowCowConfig.REWARDS_CONTRACT)
-    val amountToAcquire = claimableRewards
-      .subtract(walletBalance)
-      .max(BigDecimal.ZERO)
 
-    return RecoverySnapshot(
+    return RecoveryPlanCalculator.create(
       claimableRewards = claimableRewards,
       walletMooveBalance = walletBalance,
-      contractMooveBalance = contractBalance,
-      amountToAcquire = amountToAcquire,
-      // Community recovery procedure: pre-fund the staking contract with the full
-      // reward amount before unstaking. Do not subtract the contract's global
-      // balance because it may be needed by other stakers.
-      recommendedTopUp = claimableRewards
+      contractMooveBalance = contractBalance
     )
   }
 
