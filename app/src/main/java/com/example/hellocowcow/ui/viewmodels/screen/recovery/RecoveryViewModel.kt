@@ -183,7 +183,8 @@ class RecoveryViewModel @Inject constructor(
               buyCostEgld = quote?.buyCostEgld ?: BigDecimal.ZERO,
               expectedSellReturnEgld = quote?.expectedSellReturnEgld ?: BigDecimal.ZERO,
               minimumSellReturnEgld = quote?.minimumSellReturnEgld ?: BigDecimal.ZERO,
-              estimatedNetworkFeesEgld = networkFees?.totalFeeEgld ?: BigDecimal.ZERO
+              estimatedNetworkFeesEgld = networkFees?.totalFeeEgld ?: BigDecimal.ZERO,
+              maximumNetworkFeesEgld = networkFees?.maxTotalFeeEgld ?: BigDecimal.ZERO
             )
           )
           _costState.value = CostUiState.Success(
