@@ -33,6 +33,11 @@ interface MvxApi {
     @Path("identifier") identifier: String
   ): Single<Nft>
 
+  @GET("/nfts/{identifier}")
+  suspend fun getNftDetail(
+    @Path("identifier") identifier: String
+  ): Nft
+
   @GET("/accounts/{address}/nfts?collections=COW-cd463d")
   fun getAllCowsInWallet(
     @Path("address") address: String
