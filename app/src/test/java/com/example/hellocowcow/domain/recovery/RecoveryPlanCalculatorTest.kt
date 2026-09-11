@@ -57,4 +57,16 @@ class RecoveryPlanCalculatorTest {
     assertEquals(0, snapshot.amountToAcquire.compareTo(BigDecimal("900")))
     assertEquals(0, snapshot.recommendedTopUp.compareTo(BigDecimal("1000")))
   }
+
+  @Test
+  fun `stake nonces retain leading zeroes and order`() {
+    val snapshot = RecoveryPlanCalculator.create(
+      claimableRewards = BigDecimal.ZERO,
+      walletMooveBalance = BigDecimal.ZERO,
+      contractMooveBalance = BigDecimal.ZERO,
+      stakedCowNonces = listOf("0788", "0EB2", "267e", "0fde")
+    )
+
+    assertEquals(listOf("0788", "0eb2", "267e", "0fde"), snapshot.stakedCowNonces)
+  }
 }
