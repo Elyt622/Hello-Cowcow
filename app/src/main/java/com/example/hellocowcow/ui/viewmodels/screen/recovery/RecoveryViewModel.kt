@@ -16,6 +16,7 @@ import com.example.hellocowcow.domain.recovery.RecoveryCostEstimate
 import com.example.hellocowcow.domain.recovery.RecoveryCostEstimateInput
 import com.example.hellocowcow.domain.recovery.RecoveryDexQuote
 import com.example.hellocowcow.domain.recovery.RecoveryNetworkFeeEstimate
+import com.example.hellocowcow.domain.recovery.TransactionFeeEstimate
 import com.example.hellocowcow.domain.repositories.AccountRepository
 import com.example.hellocowcow.domain.repositories.RecoveryDexQuoteRepository
 import com.example.hellocowcow.domain.repositories.RecoveryHistoryRepository
@@ -218,9 +219,13 @@ class RecoveryViewModel @Inject constructor(
       null
     }
 
-    val claim = transactionCostRepository.estimateFee(
-      ClaimTransactionFactory.create(account)
-    )
+    val claim = if (snapshot.claimableRewards > BigDecimal.ZERO) {
+      transactionCostRepository.estimateFee(
+        ClaimTransactionFactory.create(account)
+      )
+    } else {
+      TransactionFeeEstimate.ZERO
+    }
 
     val totalFee = (topUp?.feeEgld ?: BigDecimal.ZERO).add(claim.feeEgld)
 
