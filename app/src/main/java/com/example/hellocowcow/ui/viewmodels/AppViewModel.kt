@@ -25,7 +25,6 @@ class AppViewModel @Inject constructor(
 ) : ViewModel() {
 
   sealed interface UiState {
-    data object Loading : UiState
     data object Guest : UiState
     data object Connecting : UiState
     data class Connected(
@@ -39,7 +38,7 @@ class AppViewModel @Inject constructor(
     data class OpenXPortal(val pairingUri: String) : Effect
   }
 
-  private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
+  private val _uiState = MutableStateFlow<UiState>(UiState.Guest)
   val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
   private val _effects = MutableSharedFlow<Effect>(extraBufferCapacity = 1)
@@ -47,7 +46,6 @@ class AppViewModel @Inject constructor(
 
   init {
     observeWalletEvents()
-    refreshSession()
   }
 
   fun refreshSession() {
@@ -58,17 +56,28 @@ class AppViewModel @Inject constructor(
         if (session == null) {
           _uiState.value = UiState.Guest
         } else {
+          val current = _uiState.value
+          if (current is UiState.Connected &&
+            current.topic == session.topic &&
+            current.account.address == session.address
+          ) {
+            return@onSuccess
+          }
           loadSession(session)
         }
       }.onFailure { error ->
-        _uiState.value = UiState.Error(
-          error.message ?: "Unable to restore xPortal session"
-        )
+        if (_uiState.value !is UiState.Connected) {
+          _uiState.value = UiState.Error(
+            error.message ?: "Unable to restore xPortal session"
+          )
+        }
       }
     }
   }
 
   fun connectWallet() {
+    if (_uiState.value is UiState.Connecting) return
+
     _uiState.value = UiState.Connecting
 
     walletClient.connect(
@@ -106,7 +115,7 @@ class AppViewModel @Inject constructor(
   }
 
   private suspend fun loadSession(session: WalletSession) {
-    _uiState.value = UiState.Loading
+    _uiState.value = UiState.Connecting
 
     runCatching {
       accountRepository.getAccount(session.address)

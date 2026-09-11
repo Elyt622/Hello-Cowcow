@@ -29,20 +29,19 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.example.hellocowcow.R
 import com.example.hellocowcow.data.retrofit.proxyXoxnoApi.Resources
-import com.example.hellocowcow.domain.models.ItemNav
 import com.example.hellocowcow.ui.viewmodels.screen.home.HomeViewModel
 import java.util.Locale
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun HomeScreen(
-  navController: NavController,
-  viewModel: HomeViewModel
+  viewModel: HomeViewModel,
+  onStatsClick: () -> Unit,
+  onProfileClick: () -> Unit
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val uiStateSold by viewModel.uiStateSold.collectAsStateWithLifecycle()
@@ -56,8 +55,8 @@ fun HomeScreen(
   ) {
     item {
       HomeHeader(
-        onStatsClick = { navController.navigate(ItemNav.Stats.route) },
-        onProfileClick = { navController.navigate(ItemNav.Profile.route) }
+        onStatsClick = onStatsClick,
+        onProfileClick = onProfileClick
       )
     }
 
@@ -74,9 +73,7 @@ fun HomeScreen(
     }
 
     when (val state = uiState) {
-      HomeViewModel.UiState.Loading -> item {
-        LoadingCard()
-      }
+      HomeViewModel.UiState.Loading -> item { LoadingCard() }
 
       is HomeViewModel.UiState.Error -> item {
         MessageCard(
@@ -101,9 +98,7 @@ fun HomeScreen(
     }
 
     when (val state = uiStateSold) {
-      HomeViewModel.UiStateSold.Loading -> item {
-        LoadingCard()
-      }
+      HomeViewModel.UiStateSold.Loading -> item { LoadingCard() }
 
       is HomeViewModel.UiStateSold.Error -> item {
         MessageCard(
@@ -113,9 +108,7 @@ fun HomeScreen(
       }
 
       is HomeViewModel.UiStateSold.Success -> {
-        items(state.data) { sale ->
-          SaleCard(sale)
-        }
+        items(state.data) { sale -> SaleCard(sale) }
       }
     }
   }
@@ -136,7 +129,7 @@ private fun HomeHeader(
         color = MaterialTheme.colorScheme.primary
       )
       Text(
-        text = "Your CowCow dashboard",
+        text = "Explore the collection without connecting a wallet.",
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )

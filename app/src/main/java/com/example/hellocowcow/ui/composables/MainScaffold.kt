@@ -1,23 +1,29 @@
 package com.example.hellocowcow.ui.composables
 
-import android.annotation.SuppressLint
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
-import com.example.hellocowcow.domain.models.DomainAccount
+import com.example.hellocowcow.ui.viewmodels.AppViewModel
 
-@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun MainScaffold(
-  account: DomainAccount,
-  topic: String?
+  sessionState: AppViewModel.UiState,
+  onConnectWallet: () -> Unit,
+  onContinueAsGuest: () -> Unit
 ) {
-
   val navController = rememberNavController()
 
-  if (topic != null)
-    Scaffold(
-      content = { HostController(navHostController = navController, account, topic) },
-      bottomBar = { BottomBar(navController = navController) }
+  Scaffold(
+    bottomBar = { BottomBar(navController = navController) }
+  ) { innerPadding ->
+    HostController(
+      navHostController = navController,
+      sessionState = sessionState,
+      onConnectWallet = onConnectWallet,
+      onContinueAsGuest = onContinueAsGuest,
+      modifier = Modifier.padding(innerPadding)
     )
+  }
 }

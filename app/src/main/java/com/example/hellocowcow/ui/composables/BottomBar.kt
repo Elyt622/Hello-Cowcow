@@ -10,46 +10,43 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.example.hellocowcow.data.Data
+import com.example.hellocowcow.ui.navigation.AppDestination
 
 @Composable
 fun BottomBar(navController: NavController) {
-
-  fun onClick(route: String) {
-    navController.navigate(route) {
-      navController.graph.startDestinationRoute?.let {
-        popUpTo(it) { saveState = true }
-      }
-      launchSingleTop = true
-    }
-  }
-
   val navStackBackEntry by navController.currentBackStackEntryAsState()
   val currentRoute = navStackBackEntry?.destination?.route
 
   NavigationBar(
     containerColor = MaterialTheme.colorScheme.background
   ) {
-    Data.items.forEach { item ->
+    AppDestination.bottomBarItems.forEach { destination ->
+      val selected = currentRoute == destination.route
+
       NavigationBarItem(
-        icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
-        label =
-        {
-          if (currentRoute == item.route)
-            Text(
-              text = item.label,
-              style = MaterialTheme.typography.labelSmall
-            )
+        icon = {
+          Icon(
+            imageVector = destination.icon,
+            contentDescription = destination.label
+          )
         },
-        selected = currentRoute == item.label,
-        onClick = { onClick(item.route) },
-        colors =
-        NavigationBarItemDefaults.colors(
-          selectedIconColor = MaterialTheme.colorScheme.background,
+        label = { Text(destination.label) },
+        selected = selected,
+        onClick = {
+          navController.navigate(destination.route) {
+            navController.graph.startDestinationRoute?.let { startRoute ->
+              popUpTo(startRoute) { saveState = true }
+            }
+            launchSingleTop = true
+            restoreState = true
+          }
+        },
+        colors = NavigationBarItemDefaults.colors(
+          selectedIconColor = MaterialTheme.colorScheme.onPrimary,
           selectedTextColor = MaterialTheme.colorScheme.primary,
           indicatorColor = MaterialTheme.colorScheme.primary,
-          unselectedTextColor = MaterialTheme.colorScheme.secondary,
-          unselectedIconColor = MaterialTheme.colorScheme.secondary
+          unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+          unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
       )
     }
