@@ -1,9 +1,11 @@
 package com.example.hellocowcow.ui.screen.profile.tabs
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -17,8 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.hellocowcow.domain.models.DomainNft
 import com.example.hellocowcow.ui.composables.NftCard
-import com.example.hellocowcow.ui.theme.Typography2
 import com.example.hellocowcow.ui.viewmodels.screen.profile.StakeViewModel
 
 @Composable
@@ -35,29 +37,44 @@ fun StakeScreen(
   }
 
   when (val state = uiState) {
-    is StakeViewModel.UiState.Success -> {
-      Text(
-        modifier = Modifier.padding(start = 8.dp, top = 8.dp),
-        text = "Cows: ${state.data.size}",
-        style = MaterialTheme.typography.labelMedium
-      )
-      LazyVerticalGrid(
-        modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 80.dp),
-        columns = GridCells.Adaptive(150.dp)
-      ) {
-        items(state.data) { nft ->
-          NftCard(nft = nft) {
-            nft.identifier?.let(onNftClick)
-          }
-        }
-      }
-    }
+    is StakeViewModel.UiState.Success -> StakeGrid(
+      nfts = state.data,
+      onNftClick = onNftClick
+    )
 
     StakeViewModel.UiState.Loading -> LoadingStakingGrid()
 
     is StakeViewModel.UiState.Error -> ErrorStakingGrid(state.error)
 
-    StakeViewModel.UiState.NoData -> EmptyStakingGrid("No NFT in staking")
+    StakeViewModel.UiState.NoData -> EmptyStakingGrid("No CowCow currently staked")
+  }
+}
+
+@Composable
+private fun StakeGrid(
+  nfts: List<DomainNft>,
+  onNftClick: (String) -> Unit
+) {
+  Column(modifier = Modifier.fillMaxSize()) {
+    Text(
+      text = "${nfts.size} CowCows staked",
+      modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+      style = MaterialTheme.typography.titleMedium
+    )
+
+    LazyVerticalGrid(
+      modifier = Modifier.fillMaxSize(),
+      columns = GridCells.Adaptive(150.dp),
+      contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp),
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+      items(nfts, key = { it.identifier.orEmpty() }) { nft ->
+        NftCard(nft = nft) {
+          nft.identifier?.let(onNftClick)
+        }
+      }
+    }
   }
 }
 
@@ -67,10 +84,7 @@ private fun LoadingStakingGrid() {
     modifier = Modifier.fillMaxSize(),
     contentAlignment = Alignment.Center
   ) {
-    CircularProgressIndicator(
-      modifier = Modifier.width(60.dp),
-      color = MaterialTheme.colorScheme.primary
-    )
+    CircularProgressIndicator()
   }
 }
 
@@ -93,12 +107,15 @@ private fun ErrorStakingGrid(message: String) {
 @Composable
 private fun EmptyStakingGrid(message: String) {
   Box(
-    modifier = Modifier.fillMaxSize(),
+    modifier = Modifier
+      .fillMaxSize()
+      .padding(24.dp),
     contentAlignment = Alignment.Center
   ) {
     Text(
       text = message,
-      style = Typography2.bodyLarge
+      style = MaterialTheme.typography.bodyLarge,
+      color = MaterialTheme.colorScheme.onSurfaceVariant
     )
   }
 }

@@ -1,18 +1,23 @@
 package com.example.hellocowcow.ui.screen.profile
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,119 +51,47 @@ fun ProfileScreen(
   viewModel: ProfileViewModel,
   onNftClick: (String) -> Unit
 ) {
-  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-  val uiStateTx by viewModel.uiStateTx.collectAsStateWithLifecycle()
+  val rewardState by viewModel.uiState.collectAsStateWithLifecycle()
+  val transactionState by viewModel.uiStateTx.collectAsStateWithLifecycle()
 
   LaunchedEffect(account.address) {
     viewModel.load(account.address)
   }
 
-  val claimInProgress = uiStateTx is ProfileViewModel.UiStateTx.AwaitingSignature ||
-      uiStateTx is ProfileViewModel.UiStateTx.Broadcasting
-
-  Column {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+  Column(
+    modifier = Modifier.fillMaxSize()
+  ) {
+    Column(
+      modifier = Modifier.padding(
+        start = 20.dp,
+        top = 20.dp,
+        end = 20.dp,
+        bottom = 16.dp
+      ),
+      verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-      Text(
-        text = "Hello ${account.username.substringBefore(".elrond")}",
-        color = MaterialTheme.colorScheme.onPrimary,
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier
-          .weight(1f)
-          .padding(start = 12.dp),
+      PortfolioHeader(account)
+
+      RewardsCard(
+        rewardState = rewardState,
+        transactionState = transactionState,
+        onClaim = { viewModel.requestClaimRewards(account, topic) }
       )
 
-      Button(
-        modifier = Modifier
-          .weight(1f)
-          .padding(end = 16.dp),
-        colors = ButtonDefaults.buttonColors(
-          contentColor = MaterialTheme.colorScheme.background,
-          containerColor = MaterialTheme.colorScheme.primary
-        ),
-        enabled = uiState is ProfileViewModel.UiState.Success && !claimInProgress,
-        onClick = {
-          viewModel.requestClaimRewards(account, topic)
+      when (transactionState) {
+        is ProfileViewModel.UiStateTx.Send -> {
+          CustomAlert(tx = transactionState.tx)
         }
-      ) {
-        when (uiStateTx) {
-          ProfileViewModel.UiStateTx.AwaitingSignature -> {
-            Text(
-              text = "Confirm in xPortal",
-              style = MaterialTheme.typography.labelMedium
-            )
-          }
 
-          ProfileViewModel.UiStateTx.Broadcasting -> {
-            CircularProgressIndicator(
-              modifier = Modifier.size(15.dp),
-              color = MaterialTheme.colorScheme.background
-            )
-          }
-
-          else -> {
-            when (val state = uiState) {
-              is ProfileViewModel.UiState.Success -> {
-                Text(
-                  text = "Claim ${state.data}",
-                  style = MaterialTheme.typography.labelMedium,
-                )
-                Image(
-                  ImageVector.vectorResource(id = R.drawable.moovelogo),
-                  "Moove Logo",
-                  modifier = Modifier
-                    .size(16.dp)
-                    .padding(start = 4.dp)
-                )
-              }
-
-              ProfileViewModel.UiState.Loading -> {
-                Box(contentAlignment = Alignment.Center) {
-                  CircularProgressIndicator(
-                    modifier = Modifier.size(15.dp),
-                    color = MaterialTheme.colorScheme.background
-                  )
-                }
-              }
-
-              is ProfileViewModel.UiState.Error -> {
-                Text("Rewards unavailable")
-              }
-            }
-          }
+        is ProfileViewModel.UiStateTx.Error -> {
+          InlineError(transactionState.error)
         }
+
+        else -> Unit
       }
     }
 
-    when (val transactionState = uiStateTx) {
-      is ProfileViewModel.UiStateTx.Send -> {
-        CustomAlert(tx = transactionState.tx)
-      }
-
-      is ProfileViewModel.UiStateTx.Error -> {
-        Text(
-          text = transactionState.error,
-          color = MaterialTheme.colorScheme.error,
-          style = MaterialTheme.typography.bodySmall,
-          modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-        )
-      }
-
-      else -> Unit
-    }
-
-    if (uiState is ProfileViewModel.UiState.Error) {
-      Text(
-        text = (uiState as ProfileViewModel.UiState.Error).error,
-        color = MaterialTheme.colorScheme.error,
-        style = MaterialTheme.typography.bodySmall,
-        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-      )
-    }
-
-    ProfileTabs(
+    PortfolioTabs(
       account = account,
       onNftClick = onNftClick
     )
@@ -165,48 +99,232 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileTabs(
+private fun PortfolioHeader(account: DomainAccount) {
+  val username = account.username
+    .substringBefore(".elrond")
+    .takeIf { it.isNotBlank() }
+  val address = account.address
+  val shortAddress = if (address.length > 18) {
+    "${address.take(10)}…${address.takeLast(6)}"
+  } else {
+    address
+  }
+
+  Column(
+    verticalArrangement = Arrangement.spacedBy(4.dp)
+  ) {
+    Text(
+      text = "Your CowCow portfolio",
+      style = MaterialTheme.typography.headlineLarge,
+      color = MaterialTheme.colorScheme.onBackground
+    )
+    Text(
+      text = username?.let { "Hello $it" } ?: "Connected with xPortal",
+      style = MaterialTheme.typography.titleMedium,
+      color = MaterialTheme.colorScheme.onSurface
+    )
+    Text(
+      text = shortAddress,
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis
+    )
+  }
+}
+
+@Composable
+private fun RewardsCard(
+  rewardState: ProfileViewModel.UiState,
+  transactionState: ProfileViewModel.UiStateTx,
+  onClaim: () -> Unit
+) {
+  val busy = transactionState is ProfileViewModel.UiStateTx.AwaitingSignature ||
+      transactionState is ProfileViewModel.UiStateTx.Broadcasting
+
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(28.dp),
+    color = MaterialTheme.colorScheme.secondaryContainer,
+    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+  ) {
+    Column(
+      modifier = Modifier.padding(20.dp),
+      verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Column(
+          modifier = Modifier.weight(1f),
+          verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+          Text(
+            text = "MOOVE rewards",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f)
+          )
+
+          when (rewardState) {
+            ProfileViewModel.UiState.Loading -> {
+              Text(
+                text = "Loading rewards…",
+                style = MaterialTheme.typography.titleMedium
+              )
+            }
+
+            is ProfileViewModel.UiState.Success -> {
+              Text(
+                text = rewardState.data,
+                style = MaterialTheme.typography.headlineMedium
+              )
+              Text(
+                text = "MOOVE ready to claim",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f)
+              )
+            }
+
+            is ProfileViewModel.UiState.Error -> {
+              Text(
+                text = "Rewards unavailable",
+                style = MaterialTheme.typography.titleMedium
+              )
+            }
+          }
+        }
+
+        Image(
+          imageVector = ImageVector.vectorResource(id = R.drawable.moovelogo),
+          contentDescription = "MOOVE",
+          modifier = Modifier.size(42.dp)
+        )
+      }
+
+      when {
+        transactionState is ProfileViewModel.UiStateTx.AwaitingSignature -> {
+          ClaimStatus("Confirm the transaction in xPortal")
+        }
+
+        transactionState is ProfileViewModel.UiStateTx.Broadcasting -> {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+          ) {
+            CircularProgressIndicator(
+              modifier = Modifier.size(20.dp),
+              strokeWidth = 2.dp,
+              color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            ClaimStatus("Broadcasting on MultiversX…")
+          }
+        }
+
+        else -> {
+          Button(
+            onClick = onClaim,
+            enabled = rewardState is ProfileViewModel.UiState.Success && !busy,
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Text("Claim rewards")
+          }
+        }
+      }
+
+      if (rewardState is ProfileViewModel.UiState.Error) {
+        Text(
+          text = rewardState.error,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.78f)
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun ClaimStatus(message: String) {
+  Text(
+    text = message,
+    style = MaterialTheme.typography.bodyMedium,
+    color = MaterialTheme.colorScheme.onSecondaryContainer
+  )
+}
+
+@Composable
+private fun InlineError(message: String) {
+  Card(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(18.dp),
+    colors = CardDefaults.cardColors(
+      containerColor = MaterialTheme.colorScheme.errorContainer
+    )
+  ) {
+    Text(
+      text = message,
+      modifier = Modifier.padding(14.dp),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onErrorContainer
+    )
+  }
+}
+
+@Composable
+private fun PortfolioTabs(
   account: DomainAccount,
   onNftClick: (String) -> Unit
 ) {
   var tabIndex by remember { mutableIntStateOf(0) }
-  val tabs = listOf("Wallet", "Staked", "Market")
+  val tabs = listOf("Owned", "Staked", "Listed")
 
-  Column(modifier = Modifier.fillMaxWidth()) {
-    TabRow(
+  Column(
+    modifier = Modifier.fillMaxSize()
+  ) {
+    SecondaryTabRow(
       selectedTabIndex = tabIndex,
-      containerColor = MaterialTheme.colorScheme.primary,
-      contentColor = MaterialTheme.colorScheme.background
+      containerColor = MaterialTheme.colorScheme.background,
+      contentColor = MaterialTheme.colorScheme.primary
     ) {
       tabs.forEachIndexed { index, title ->
         Tab(
-          text = { Text(title, style = MaterialTheme.typography.bodyMedium) },
+          text = {
+            Text(
+              text = title,
+              style = MaterialTheme.typography.labelLarge
+            )
+          },
           selected = tabIndex == index,
-          onClick = { tabIndex = index },
-          selectedContentColor = MaterialTheme.colorScheme.background,
-          unselectedContentColor = MaterialTheme.colorScheme.background
+          onClick = { tabIndex = index }
         )
       }
     }
 
-    when (tabIndex) {
-      0 -> WalletScreen(
-        viewModel = hiltViewModel<WalletViewModel>(),
-        address = account.address,
-        onNftClick = onNftClick
-      )
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .weight(1f)
+    ) {
+      when (tabIndex) {
+        0 -> WalletScreen(
+          viewModel = hiltViewModel<WalletViewModel>(),
+          address = account.address,
+          onNftClick = onNftClick
+        )
 
-      1 -> StakeScreen(
-        viewModel = hiltViewModel<StakeViewModel>(),
-        address = account.address,
-        onNftClick = onNftClick
-      )
+        1 -> StakeScreen(
+          viewModel = hiltViewModel<StakeViewModel>(),
+          address = account.address,
+          onNftClick = onNftClick
+        )
 
-      2 -> MarketScreen(
-        viewModel = hiltViewModel<MarketViewModel>(),
-        address = account.address,
-        onNftClick = onNftClick
-      )
+        2 -> MarketScreen(
+          viewModel = hiltViewModel<MarketViewModel>(),
+          address = account.address,
+          onNftClick = onNftClick
+        )
+      }
     }
   }
 }
