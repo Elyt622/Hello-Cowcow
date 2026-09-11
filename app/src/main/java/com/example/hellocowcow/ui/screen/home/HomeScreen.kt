@@ -551,9 +551,3 @@ private fun formatNumber(
 ): String = value?.let {
   String.format(locale, pattern, it)
 } ?: "—"
-
-private fun formatNumber(
-  locale: Locale,
-  pattern: String,
-  value: Double
-): String = String.format(locale, pattern, value)
