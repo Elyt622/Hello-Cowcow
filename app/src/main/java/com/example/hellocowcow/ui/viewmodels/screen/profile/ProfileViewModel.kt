@@ -1,5 +1,6 @@
 package com.example.hellocowcow.ui.viewmodels.screen.profile
 
+import androidx.lifecycle.viewModelScope
 import com.example.hellocowcow.app.module.BaseViewModel
 import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.core.wallet.MvxSignTransactionResultParser
@@ -24,6 +25,7 @@ import io.reactivex.rxjava3.kotlin.addTo
 import io.reactivex.rxjava3.kotlin.subscribeBy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.math.RoundingMode
 import java.util.regex.Pattern
@@ -155,16 +157,16 @@ class ProfileViewModel @Inject constructor(
 
     _uiStateTx.value = UiStateTx.Broadcasting
 
-    transactionRepository.sendTransaction(transaction)
-      .subscribeBy(
-        onNext = { tx ->
-          clearPendingClaim()
-          _uiStateTx.value = UiStateTx.Send(tx)
-        },
-        onError = { error ->
-          failClaim(error.message ?: "Unable to broadcast transaction")
-        }
-      ).addTo(disposable)
+    viewModelScope.launch {
+      runCatching {
+        transactionRepository.sendTransaction(transaction)
+      }.onSuccess { tx ->
+        clearPendingClaim()
+        _uiStateTx.value = UiStateTx.Send(tx)
+      }.onFailure { error ->
+        failClaim(error.message ?: "Unable to broadcast transaction")
+      }
+    }
   }
 
   private fun failClaim(message: String) {
