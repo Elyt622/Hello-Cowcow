@@ -8,6 +8,7 @@ import com.example.hellocowcow.core.wallet.WalletClient
 import com.example.hellocowcow.core.wallet.WalletEvent
 import com.example.hellocowcow.data.retrofit.mvxApi.request.Reward
 import com.example.hellocowcow.data.retrofit.mvxApi.request.Transaction
+import com.example.hellocowcow.data.rewards.MooveRewardDecoder
 import com.example.hellocowcow.data.transaction.ClaimTransactionFactory
 import com.example.hellocowcow.data.transaction.withWalletResult
 import com.example.hellocowcow.domain.models.DomainAccount
@@ -16,17 +17,13 @@ import com.example.hellocowcow.domain.repositories.NftRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import com.reown.util.bytesToHex
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.ipfs.multibase.binary.Base64
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.kotlin.addTo
 import io.reactivex.rxjava3.kotlin.subscribeBy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import java.math.RoundingMode
-import java.util.regex.Pattern
 import javax.inject.Inject
 
 @HiltViewModel
@@ -181,9 +178,7 @@ class ProfileViewModel @Inject constructor(
 
   fun getUnclaimedMooveForUser() {
     getAllDataForUser()
-      .map { base64Data -> extractData(base64Data) }
-      .map { hex -> hex.toBigInteger(16).toBigDecimal(18) }
-      .map { decimalValue -> decimalValue.setScale(4, RoundingMode.HALF_UP) }
+      .map(MooveRewardDecoder::decodeClaimableAmount)
       .subscribeBy(
         onNext = { data ->
           _uiState.value = UiState.Success(data.toEngineeringString())
@@ -192,25 +187,6 @@ class ProfileViewModel @Inject constructor(
           _uiState.value = UiState.Error(error.message.toString())
         }
       ).addTo(disposable)
-  }
-
-  private fun extractData(
-    base64Data: String
-  ): String {
-    var matchedValue = ""
-    val regex =
-      "B[0-9w-z+/][A-Za-z0-9+/]{8}A|C[A-P][A-Za-z0-9+/]{9}AA|C[Q-Za-f][A-Za-z0-9+/]{10}AA|C[g-v][A-Za-z0-9+/]{11}AA"
-    val dataLength = base64Data.length
-    val matches = Pattern
-      .compile(regex)
-      .matcher(base64Data.substring(dataLength - 35, dataLength))
-    if (matches.find()) {
-      matchedValue = matches.group()
-    }
-    return Base64
-      .decodeBase64(matchedValue)
-      .bytesToHex()
-      .substring(2)
   }
 
   private fun getAllDataForUser(): Observable<String> =
@@ -222,5 +198,8 @@ class ProfileViewModel @Inject constructor(
         arrayListOf(),
         address
       )
-    ).map { it.returnData[0] }
+    ).map { response ->
+      response.returnData.firstOrNull()
+        ?: throw IllegalStateException("Rewards contract returned no data")
+    }
 }
