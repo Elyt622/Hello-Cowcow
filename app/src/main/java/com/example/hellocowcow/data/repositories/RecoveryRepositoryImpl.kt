@@ -16,11 +16,14 @@ class RecoveryRepositoryImpl @Inject constructor(
   private val rewardsRepository: RewardsRepository
 ) : RecoveryRepository {
 
-  override suspend fun getSnapshot(address: String): RecoverySnapshot {
+  override suspend fun getSnapshot(
+    address: String,
+    forceRefreshRewards: Boolean
+  ): RecoverySnapshot {
     require(address.isNotBlank()) { "Wallet address is required for recovery diagnostics" }
 
     val claimableRewards = MooveRewardDecoder.decodeClaimableAmount(
-      rewardsRepository.getUserData(address)
+      rewardsRepository.getUserData(address, forceRefresh = forceRefreshRewards)
     )
     val walletBalance = getMooveBalance(address)
     val contractBalance = getMooveBalance(CowCowConfig.REWARDS_CONTRACT)
