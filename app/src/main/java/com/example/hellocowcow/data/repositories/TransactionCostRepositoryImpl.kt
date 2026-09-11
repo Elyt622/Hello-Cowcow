@@ -43,6 +43,9 @@ class TransactionCostRepositoryImpl @Inject constructor(
     val expectedGasUnits = simulatedGas ?: transaction.gasLimit
     require(expectedGasUnits > 0) { "Transaction gas estimate must be positive" }
     require(transaction.gasLimit > 0) { "Transaction gas limit must be positive" }
+    check(simulatedGas == null || simulatedGas <= transaction.gasLimit) {
+      "Live MultiversX gas estimate $simulatedGas exceeds configured gas limit ${transaction.gasLimit}"
+    }
 
     return TransactionFeeEstimate(
       feeEgld = calculateFeeEgld(
