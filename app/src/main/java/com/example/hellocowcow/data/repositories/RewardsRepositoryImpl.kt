@@ -19,12 +19,13 @@ class RewardsRepositoryImpl @Inject constructor(
   @Volatile
   private var cachedAtMillis: Long = 0L
 
-  override suspend fun getUserData(address: String): String {
+  override suspend fun getUserData(address: String, forceRefresh: Boolean): String {
     require(address.isNotBlank()) { "Wallet address is required to load rewards" }
 
     val now = System.currentTimeMillis()
     val cached = cachedValue
     if (
+      !forceRefresh &&
       cached != null &&
       cachedAddress == address &&
       now - cachedAtMillis <= CACHE_TTL_MILLIS
