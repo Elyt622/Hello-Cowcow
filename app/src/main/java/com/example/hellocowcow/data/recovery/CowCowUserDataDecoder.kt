@@ -9,27 +9,39 @@ object CowCowUserDataDecoder {
     require(returnData.isNotBlank()) { "CowCow contract returned empty user data" }
 
     val bytes = Base64.getDecoder().decode(returnData)
-    require(bytes.size >= 2) { "CowCow user data is too short" }
+    require(bytes.isNotEmpty()) { "CowCow user data is empty" }
 
     val hex = bytes.joinToString(separator = "") { byte ->
       "%02x".format(byte.toInt() and 0xff)
     }
-    require(hex.length >= 4) { "CowCow user data does not contain a stake count" }
 
-    val count = hex.substring(0, 4).toInt(16)
+    // Match the decoding path historically used by the Staked portfolio screen.
+    // getAllDataForUser contains other zero-valued fields before the staking list,
+    // so treating the first two bytes as the stake count is not reliable.
+    val nonZeroSegments = buildList {
+      var index = 0
+      while (index < hex.length) {
+        val end = minOf(index + 4, hex.length)
+        val segment = hex.substring(index, end)
+        if (!segment.contains("0000")) {
+          add(if (segment.startsWith("00")) segment.drop(2) else segment)
+        }
+        index += 4
+      }
+    }
+
+    if (nonZeroSegments.isEmpty()) return emptyList()
+
+    val count = nonZeroSegments.first().toIntOrNull(16)
+      ?: throw IllegalArgumentException("CowCow user data does not contain a valid stake count")
+
     if (count == 0) return emptyList()
-
-    val requiredLength = 4 + count * 4
-    require(hex.length >= requiredLength) {
+    require(nonZeroSegments.size >= count + 1) {
       "CowCow user data ended before all staked nonces could be decoded"
     }
 
-    return buildList(count) {
-      repeat(count) { index ->
-        val start = 4 + index * 4
-        val fixedWidthNonce = hex.substring(start, start + 4)
-        add(CowCowNonceCodec.normalize(fixedWidthNonce))
-      }
-    }
+    return nonZeroSegments
+      .subList(1, count + 1)
+      .map(CowCowNonceCodec::normalize)
   }
 }
