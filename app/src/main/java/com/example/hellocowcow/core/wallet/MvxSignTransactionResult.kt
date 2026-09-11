@@ -2,7 +2,6 @@ package com.example.hellocowcow.core.wallet
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 
 data class MvxSignTransactionResult(
   val signature: String,
@@ -39,17 +38,16 @@ object MvxSignTransactionResultParser {
   private fun Any?.toJsonObject(): JsonObject {
     requireNotNull(this) { "Wallet returned an empty transaction result" }
 
-    val element = if (this is String) {
-      runCatching { JsonParser.parseString(this) }
-        .getOrElse { gson.toJsonTree(this) }
+    return if (this is String) {
+      gson.fromJson(this, JsonObject::class.java)
+        ?: error("Wallet transaction result must be a JSON object")
     } else {
-      gson.toJsonTree(this)
+      val element = gson.toJsonTree(this)
+      require(element.isJsonObject) {
+        "Wallet transaction result must be a JSON object"
+      }
+      element.asJsonObject
     }
-
-    require(element.isJsonObject) {
-      "Wallet transaction result must be a JSON object"
-    }
-    return element.asJsonObject
   }
 
   private fun JsonObject.stringOrNull(name: String): String? =
