@@ -14,6 +14,8 @@ data class RecoveryNetworkFeeEstimate(
   val topUp: TransactionFeeEstimate?,
   val claim: TransactionFeeEstimate,
   val totalFeeEgld: BigDecimal,
-  val maxTotalFeeEgld: BigDecimal,
   val fullySimulated: Boolean
-)
+) {
+  val maxTotalFeeEgld: BigDecimal
+    get() = (topUp?.maxFeeEgld ?: BigDecimal.ZERO).add(claim.maxFeeEgld)
+}
