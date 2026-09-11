@@ -22,6 +22,12 @@ interface MvxApi {
     @Path("identifier") identifier: String
   ): Single<Token>
 
+  @GET("/accounts/{address}/tokens/{token}")
+  suspend fun getAccountToken(
+    @Path("address") address: String,
+    @Path("token") token: String
+  ): Token
+
   @GET("/nfts/{identifier}")
   fun getNft(
     @Path("identifier") identifier: String

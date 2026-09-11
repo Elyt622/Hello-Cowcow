@@ -11,6 +11,8 @@ object CowCowConfig {
   const val MAINNET_CAIP_CHAIN_ID = "mvx:1"
   const val MIN_GAS_PRICE = 1_000_000_000L
   const val CLAIM_REWARDS_GAS_LIMIT = 30_000_000L
+  const val ESDT_TRANSFER_GAS_LIMIT = 500_000L
   const val GUARDED_TRANSACTION_GAS_OVERHEAD = 50_000L
   const val CLAIM_REWARDS_DATA = "Y2xhaW1SZXdhcmRz"
+  const val MOOVE_DECIMALS = 18
 }
