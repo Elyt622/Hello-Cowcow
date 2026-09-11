@@ -1,9 +1,9 @@
 package com.example.hellocowcow.data.rewards
 
+import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
-import java.math.BigDecimal
 
 class MooveRewardDecoderTest {
 
@@ -15,7 +15,17 @@ class MooveRewardDecoderTest {
       "contract-prefix-BwBa8xB6QAA"
     )
 
-    assertEquals(BigDecimal("0.0001"), result)
+    assertEquals(0, BigDecimal("0.0001").compareTo(result))
+  }
+
+  @Test
+  fun `preserves all token decimals instead of rounding recovery liquidity`() {
+    // Base64 decodes to 07 | 0462d53c8abac0 = 1234567890123456 atomic MOOVE.
+    val result = MooveRewardDecoder.decodeClaimableAmount(
+      "contract-prefix-BwRi1TyKusA"
+    )
+
+    assertEquals(0, BigDecimal("0.001234567890123456").compareTo(result))
   }
 
   @Test
