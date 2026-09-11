@@ -216,7 +216,8 @@ private fun RecoveryContent(
     )
 
     is MainViewModel.WalletUiState.Connected -> RecoveryScreen(
-      address = walletState.account.address,
+      account = walletState.account,
+      topic = walletState.topic,
       viewModel = hiltViewModel<RecoveryViewModel>()
     )
 

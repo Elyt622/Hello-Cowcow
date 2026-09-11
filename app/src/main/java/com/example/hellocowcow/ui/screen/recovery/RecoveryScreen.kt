@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -20,13 +22,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.domain.models.RecoverySnapshot
 import com.example.hellocowcow.ui.viewmodels.screen.recovery.RecoveryViewModel
 import java.math.BigDecimal
@@ -34,13 +41,32 @@ import java.math.RoundingMode
 
 @Composable
 fun RecoveryScreen(
-  address: String,
+  account: DomainAccount,
+  topic: String,
   viewModel: RecoveryViewModel
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val transactionState by viewModel.transactionState.collectAsStateWithLifecycle()
+  var showTopUpConfirmation by remember { mutableStateOf(false) }
 
-  LaunchedEffect(address) {
-    viewModel.load(address)
+  LaunchedEffect(account.address) {
+    viewModel.load(account.address)
+  }
+
+  val snapshot = (uiState as? RecoveryViewModel.UiState.Success)?.snapshot
+  if (showTopUpConfirmation && snapshot != null) {
+    TopUpConfirmationDialog(
+      amount = snapshot.recommendedTopUp,
+      onDismiss = { showTopUpConfirmation = false },
+      onConfirm = {
+        showTopUpConfirmation = false
+        viewModel.requestTopUp(
+          account = account,
+          topic = topic,
+          amountMoove = snapshot.recommendedTopUp
+        )
+      }
+    )
   }
 
   Column(
@@ -55,7 +81,12 @@ fun RecoveryScreen(
     when (val state = uiState) {
       RecoveryViewModel.UiState.Loading -> RecoveryLoading()
       is RecoveryViewModel.UiState.Error -> RecoveryError(state.message)
-      is RecoveryViewModel.UiState.Success -> RecoveryDiagnostic(state.snapshot)
+      is RecoveryViewModel.UiState.Success -> RecoveryDiagnostic(
+        snapshot = state.snapshot,
+        transactionState = transactionState,
+        onFundContract = { showTopUpConfirmation = true },
+        onDismissError = viewModel::clearTransactionError
+      )
     }
   }
 }
@@ -119,8 +150,16 @@ private fun RecoveryError(message: String) {
 }
 
 @Composable
-private fun RecoveryDiagnostic(snapshot: RecoverySnapshot) {
-  val readyToFund = snapshot.amountToAcquire.compareTo(BigDecimal.ZERO) == 0
+private fun RecoveryDiagnostic(
+  snapshot: RecoverySnapshot,
+  transactionState: RecoveryViewModel.TransactionUiState,
+  onFundContract: () -> Unit,
+  onDismissError: () -> Unit
+) {
+  val readyToFund = snapshot.amountToAcquire.compareTo(BigDecimal.ZERO) == 0 &&
+      snapshot.recommendedTopUp > BigDecimal.ZERO
+  val transactionBusy = transactionState is RecoveryViewModel.TransactionUiState.AwaitingSignature ||
+      transactionState is RecoveryViewModel.TransactionUiState.Broadcasting
 
   StatusCard(
     ready = readyToFund,
@@ -135,8 +174,125 @@ private fun RecoveryDiagnostic(snapshot: RecoverySnapshot) {
     MetricRow("Contract balance", snapshot.contractMooveBalance, "MOOVE", informational = true)
   }
 
+  TopUpActionCard(
+    snapshot = snapshot,
+    readyToFund = readyToFund,
+    transactionBusy = transactionBusy,
+    transactionState = transactionState,
+    onFundContract = onFundContract,
+    onDismissError = onDismissError
+  )
+
   RecoverySteps()
-  TransactionLockNotice()
+  ContractActionLockNotice()
+}
+
+@Composable
+private fun TopUpActionCard(
+  snapshot: RecoverySnapshot,
+  readyToFund: Boolean,
+  transactionBusy: Boolean,
+  transactionState: RecoveryViewModel.TransactionUiState,
+  onFundContract: () -> Unit,
+  onDismissError: () -> Unit
+) {
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(24.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant
+  ) {
+    Column(
+      modifier = Modifier.padding(18.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+      Text("Step 2 · Fund CowCow Staking", style = MaterialTheme.typography.titleLarge)
+      Text(
+        "This sends ${formatMoove(snapshot.recommendedTopUp)} MOOVE directly to the CowCow staking contract. It is not a swap and the tokens leave your wallet.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+      )
+
+      when (transactionState) {
+        RecoveryViewModel.TransactionUiState.AwaitingSignature -> TransactionStatus("Confirm the MOOVE transfer in xPortal")
+        RecoveryViewModel.TransactionUiState.Broadcasting -> TransactionStatus("Broadcasting the MOOVE transfer…", loading = true)
+        is RecoveryViewModel.TransactionUiState.Success -> {
+          Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+          ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+              Text("Contract funded", style = MaterialTheme.typography.titleMedium)
+              transactionState.transaction.txHash?.let { hash ->
+                Text(
+                  "Transaction ${hash.take(10)}…${hash.takeLast(8)}",
+                  style = MaterialTheme.typography.bodySmall
+                )
+              }
+            }
+          }
+        }
+        is RecoveryViewModel.TransactionUiState.Error -> {
+          Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+          ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+              Text(transactionState.message, color = MaterialTheme.colorScheme.onErrorContainer)
+              TextButton(onClick = onDismissError) { Text("Dismiss") }
+            }
+          }
+        }
+        RecoveryViewModel.TransactionUiState.Idle -> Unit
+      }
+
+      Button(
+        onClick = onFundContract,
+        enabled = readyToFund && !transactionBusy &&
+            transactionState !is RecoveryViewModel.TransactionUiState.Success,
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Text(
+          if (snapshot.amountToAcquire > BigDecimal.ZERO) {
+            "Acquire ${formatMoove(snapshot.amountToAcquire)} MOOVE first"
+          } else {
+            "Review and fund contract"
+          }
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun TransactionStatus(message: String, loading: Boolean = false) {
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(10.dp)
+  ) {
+    if (loading) CircularProgressIndicator()
+    Text(message, style = MaterialTheme.typography.bodyMedium)
+  }
+}
+
+@Composable
+private fun TopUpConfirmationDialog(
+  amount: BigDecimal,
+  onDismiss: () -> Unit,
+  onConfirm: () -> Unit
+) {
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("Fund CowCow Staking?") },
+    text = {
+      Text(
+        "You are about to send ${formatMoove(amount)} MOOVE to the legacy CowCow staking contract. This is the prefunding step of the community recovery procedure. xPortal will still ask you to sign the transaction."
+      )
+    },
+    confirmButton = {
+      Button(onClick = onConfirm) { Text("Continue to xPortal") }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) { Text("Cancel") }
+    }
+  )
 }
 
 @Composable
@@ -144,16 +300,8 @@ private fun StatusCard(
   ready: Boolean,
   amountToAcquire: BigDecimal
 ) {
-  val container = if (ready) {
-    MaterialTheme.colorScheme.secondaryContainer
-  } else {
-    MaterialTheme.colorScheme.primaryContainer
-  }
-  val content = if (ready) {
-    MaterialTheme.colorScheme.onSecondaryContainer
-  } else {
-    MaterialTheme.colorScheme.onPrimaryContainer
-  }
+  val container = if (ready) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer
+  val content = if (ready) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
 
   Surface(
     modifier = Modifier.fillMaxWidth(),
@@ -200,11 +348,7 @@ private fun MetricRow(
     modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(20.dp),
     colors = CardDefaults.cardColors(
-      containerColor = if (emphasize) {
-        MaterialTheme.colorScheme.secondaryContainer
-      } else {
-        MaterialTheme.colorScheme.surface
-      }
+      containerColor = if (emphasize) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
     )
   ) {
     Row(
@@ -264,7 +408,7 @@ private fun RecoveryStep(number: Int, title: String, detail: String) {
 }
 
 @Composable
-private fun TransactionLockNotice() {
+private fun ContractActionLockNotice() {
   Surface(
     modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(22.dp),
@@ -277,9 +421,9 @@ private fun TransactionLockNotice() {
     ) {
       Icon(Icons.Filled.Lock, contentDescription = null)
       Column {
-        Text("Transaction actions are still locked", style = MaterialTheme.typography.titleMedium)
+        Text("Unstake and unbond are still locked", style = MaterialTheme.typography.titleMedium)
         Text(
-          "The app will enable swap, contract funding, unstake and unbond only after the exact CowCow contract calls are verified from real historical transactions or the patched dapp.",
+          "Those CowCow-specific calls will be enabled only after their exact endpoints and arguments are verified from real historical transactions or the patched dapp.",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
