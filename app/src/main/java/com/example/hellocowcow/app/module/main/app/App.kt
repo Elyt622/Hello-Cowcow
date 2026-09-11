@@ -32,14 +32,15 @@ class App : Application() {
       redirect = getString(R.string.deep_link_url)
     )
 
-    // Use the documented Android initialization path. Passing projectId directly
-    // lets Reown configure Core before SignClient is created, instead of relying
-    // on the older relayServerUrl overload that could race on real devices.
     CoreClient.initialize(
-      projectId = projectId,
-      connectionType = connectionType,
       application = this,
-      metaData = appMetaData
+      projectId = projectId,
+      metaData = appMetaData,
+      connectionType = connectionType,
+      onError = { error ->
+        Timber.tag("CoreClient_Init_Error")
+          .e(error.throwable)
+      }
     )
 
     SignClient.initialize(
