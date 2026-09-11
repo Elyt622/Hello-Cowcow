@@ -27,7 +27,11 @@ fun HostController(
       composable(item.route) {
         when (it.destination.route) {
           ItemNav.Home.route -> {
-            HomeScreen(navHostController, hiltViewModel())
+            HomeScreen(
+              viewModel = hiltViewModel(),
+              onCollectionClick = { navHostController.navigate(ItemNav.Stats.route) },
+              onPortfolioClick = { navHostController.navigate(ItemNav.Profile.route) }
+            )
           }
 
           ItemNav.Raffles.route -> {
