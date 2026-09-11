@@ -12,6 +12,7 @@ on:
       - hello-cowcow-2026-recovery
       - hello-cowcow-2026-polish
       - hello-cowcow-2026-tx-tracking
+      - hello-cowcow-2026-recovery-cost
 
 permissions:
   contents: read
