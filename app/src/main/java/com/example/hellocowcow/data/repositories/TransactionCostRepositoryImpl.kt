@@ -15,8 +15,6 @@ class TransactionCostRepositoryImpl @Inject constructor(
   private val api: MvxGatewayApi
 ) : TransactionCostRepository {
 
-  private var cachedConfig: NetworkConfig? = null
-
   override suspend fun estimateFee(transaction: MvxTransaction): TransactionFeeEstimate {
     val config = getNetworkConfig()
     val minGasPrice = requireNotNull(config.minGasPrice) { "Network min gas price is missing" }
@@ -71,8 +69,6 @@ class TransactionCostRepositoryImpl @Inject constructor(
   }
 
   private suspend fun getNetworkConfig(): NetworkConfig {
-    cachedConfig?.let { return it }
-
     val response = api.getNetworkConfig()
     check(response.error.isNullOrBlank()) {
       response.error ?: "Unable to load MultiversX network configuration"
@@ -80,7 +76,7 @@ class TransactionCostRepositoryImpl @Inject constructor(
 
     return requireNotNull(response.data?.config) {
       "MultiversX network configuration is missing"
-    }.also { cachedConfig = it }
+    }
   }
 
   private fun calculateFeeEgld(
