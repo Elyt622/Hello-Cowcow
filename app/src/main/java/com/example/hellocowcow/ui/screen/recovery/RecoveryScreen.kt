@@ -36,12 +36,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.domain.models.RecoverySnapshot
 import com.example.hellocowcow.domain.models.RecoveryUnbondBatch
+import com.example.hellocowcow.domain.recovery.CowCowUnstakePreviewCodec
 import com.example.hellocowcow.ui.viewmodels.screen.recovery.RecoveryViewModel
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -190,6 +193,8 @@ private fun RecoveryDiagnostic(
     activeAction = activeAction,
     onDismissError = onDismissError
   )
+
+  UnstakeProtocolPreview(snapshot)
 
   ExitStateCard(
     snapshot = snapshot,
@@ -372,6 +377,91 @@ private fun ClaimFirstActions(
 }
 
 @Composable
+private fun UnstakeProtocolPreview(snapshot: RecoverySnapshot) {
+  if (snapshot.stakedCowNonces.isEmpty()) return
+
+  val encoded = remember(snapshot.stakedCowNonces) {
+    runCatching { CowCowUnstakePreviewCodec.encode(snapshot.stakedCowNonces) }
+  }
+
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(16.dp),
+    color = MaterialTheme.colorScheme.primaryContainer,
+    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+  ) {
+    Column(
+      modifier = Modifier.padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+      Text(
+        "Unstake protocol preview · read-only",
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.SemiBold
+      )
+
+      encoded.onSuccess { preview ->
+        RecoveryQuoteRow("CowCows in payload", preview.nonces.size.toString())
+        RecoveryQuoteRow("Historical gas ceiling", formatInteger(CowCowConfig.UNSTAKE_GAS_LIMIT))
+        RecoveryQuoteRow("Current rewards before unstake", "${formatMoove(snapshot.claimableRewards)} MOOVE")
+
+        if (snapshot.claimableRewards > BigDecimal.ZERO) {
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top
+          ) {
+            Icon(Icons.Filled.WarningAmber, contentDescription = null)
+            Text(
+              "Claim-first is not finished yet. A real unstake at the current state would also attempt to pay the remaining MOOVE rewards.",
+              style = MaterialTheme.typography.bodySmall
+            )
+          }
+        } else {
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top
+          ) {
+            Icon(Icons.Filled.CheckCircle, contentDescription = null)
+            Text(
+              "No pending MOOVE reward is currently reported. This is the state we want immediately before enabling unstake.",
+              style = MaterialTheme.typography.bodySmall
+            )
+          }
+        }
+
+        Text("Exact payload", style = MaterialTheme.typography.labelLarge)
+        Surface(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(10.dp),
+          color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
+        ) {
+          Text(
+            text = preview.payload,
+            modifier = Modifier.padding(10.dp),
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace
+          )
+        }
+
+        Text(
+          "The 600M value is a conservative historical ceiling from a successful 72-CowCow unstake, not a live gas simulation. The live simulation/signing path remains intentionally disabled.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        LockedAction(
+          "Preview only · no unstake signature or broadcast can be triggered from this card."
+        )
+      }.onFailure { error ->
+        Text(
+          "Unable to build the read-only preview: ${error.message}",
+          style = MaterialTheme.typography.bodySmall
+        )
+      }
+    }
+  }
+}
+
+@Composable
 private fun ExitStateCard(
   snapshot: RecoverySnapshot,
   pendingBatches: List<RecoveryUnbondBatch>,
@@ -392,10 +482,10 @@ private fun ExitStateCard(
         RecoveryStep(
           number = 5,
           title = "Unstake ${snapshot.stakedCowNonces.size} CowCows",
-          detail = "Mainnet history verifies unstake@<nonce>… and the MOOVE payout it triggers. The app already reads the exact four-digit nonces from contract state."
+          detail = "Mainnet history verifies unstake@<nonce>… and the MOOVE payout it triggers. The app reconstructs the exact nonce payload from contract state."
         )
         LockedAction(
-          "Unstake transaction builder is not enabled in this build; the protocol evidence and state are ready."
+          "Unstake signing remains disabled; use the read-only protocol preview above to verify the exact payload first."
         )
       }
 
@@ -583,12 +673,10 @@ private fun RecoveryCostCard(
             RecoveryQuoteRow("Expected DEX friction", "${formatEgld(state.estimate.expectedDexLossEgld)} EGLD")
             RecoveryQuoteRow("Worst-case DEX friction", "${formatEgld(state.estimate.worstCaseDexLossEgld)} EGLD")
           }
-          state.networkFees?.topUp?.let { fee ->
+          state.networkFees.topUp?.let { fee ->
             RecoveryQuoteRow("Top-up network fee", "${formatEgld(fee.feeEgld)} EGLD")
           }
-          state.networkFees?.let { fees ->
-            RecoveryQuoteRow("claimRewards network fee", "${formatEgld(fees.claim.feeEgld)} EGLD")
-          }
+          RecoveryQuoteRow("claimRewards network fee", "${formatEgld(state.networkFees.claim.feeEgld)} EGLD")
           RecoveryQuoteRow("Expected claim-cycle loss", "${formatEgld(state.estimate.expectedTotalLossEgld)} EGLD")
           RecoveryQuoteRow("Worst-case claim-cycle loss", "${formatEgld(state.estimate.worstCaseTotalLossEgld)} EGLD")
           state.quote?.let {
@@ -801,6 +889,8 @@ private fun formatPercent(ratio: BigDecimal): String = ratio
   .setScale(1, RoundingMode.HALF_UP)
   .stripTrailingZeros()
   .toPlainString() + "%"
+
+private fun formatInteger(value: Long): String = "%,d".format(value)
 
 private fun shortHash(hash: String): String = if (hash.length > 20) {
   "${hash.take(10)}…${hash.takeLast(8)}"
