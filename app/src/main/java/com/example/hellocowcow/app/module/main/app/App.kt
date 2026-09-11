@@ -23,8 +23,6 @@ class App : Application() {
     }
 
     val projectId = resources.getString(R.string.wallet_connect_id)
-    val relayUrl = "relay.walletconnect.com"
-    val serverUrl = "wss://$relayUrl?projectId=$projectId"
     val connectionType = ConnectionType.AUTOMATIC
     val appMetaData = Core.Model.AppMetaData(
       name = "Hello CowCow",
@@ -34,15 +32,15 @@ class App : Application() {
       redirect = getString(R.string.deep_link_url)
     )
 
+    // Use the documented Android initialization path. Passing projectId directly
+    // lets Reown configure Core before SignClient is created, instead of relying
+    // on the older relayServerUrl overload that could race on real devices.
     CoreClient.initialize(
-      relayServerUrl = serverUrl,
+      projectId = projectId,
       connectionType = connectionType,
       application = this,
       metaData = appMetaData
-    ) { error ->
-      Timber.tag("CoreClient_Init_Error")
-        .e(error.throwable.stackTraceToString())
-    }
+    )
 
     SignClient.initialize(
       init = Sign.Params.Init(core = CoreClient),
