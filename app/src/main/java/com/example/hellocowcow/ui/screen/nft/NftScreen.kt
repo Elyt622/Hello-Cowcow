@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -38,8 +39,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
@@ -68,10 +71,7 @@ fun NftScreen(
       TopAppBar(
         title = {
           Text(
-            text = (uiState as? NftViewModel.UiState.Success)
-              ?.nft
-              ?.identifier
-              ?: identifier,
+            text = "CowCow detail",
             style = MaterialTheme.typography.titleMedium
           )
         },
@@ -128,15 +128,26 @@ private fun ErrorNft(
     contentAlignment = Alignment.Center
   ) {
     Card(
+      shape = RoundedCornerShape(22.dp),
       colors = CardDefaults.cardColors(
         containerColor = MaterialTheme.colorScheme.errorContainer
       )
     ) {
-      Text(
-        text = message,
+      Column(
         modifier = Modifier.padding(20.dp),
-        color = MaterialTheme.colorScheme.onErrorContainer
-      )
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+      ) {
+        Text(
+          text = "Unable to load this CowCow",
+          style = MaterialTheme.typography.titleSmall,
+          color = MaterialTheme.colorScheme.onErrorContainer
+        )
+        Text(
+          text = message,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onErrorContainer
+        )
+      }
     }
   }
 }
@@ -150,60 +161,32 @@ private fun NftContent(
   padding: PaddingValues,
   nft: DomainNft
 ) {
+  val locale = LocalLocale.current.platformLocale
+
   Column(
     modifier = Modifier
       .fillMaxSize()
       .padding(padding)
       .verticalScroll(rememberScrollState())
-      .padding(16.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp)
+      .padding(start = 20.dp, end = 20.dp, bottom = 32.dp),
+    verticalArrangement = Arrangement.spacedBy(20.dp)
   ) {
     NftArtwork(nft)
+    NftIdentity(nft)
+    NftQuickFacts(nft, locale)
 
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-      Column {
+    nft.metadata?.description
+      ?.takeIf { it.isNotBlank() }
+      ?.let { description ->
         Text(
-          text = nft.name.orEmpty(),
-          style = MaterialTheme.typography.headlineSmall,
-          color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-          text = nft.identifier.orEmpty(),
-          style = MaterialTheme.typography.bodySmall,
+          text = description,
+          style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
       }
-      Text(
-        text = "Rank #${nft.metadata?.rarity?.rank ?: "—"}",
-        style = MaterialTheme.typography.titleMedium
-      )
-    }
 
     if (nft.onSale == true) {
-      Card(
-        colors = CardDefaults.cardColors(
-          containerColor = MaterialTheme.colorScheme.primary,
-          contentColor = MaterialTheme.colorScheme.onPrimary
-        )
-      ) {
-        Column(
-          modifier = Modifier.padding(16.dp),
-          verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-          Text(
-            text = "Listed",
-            style = MaterialTheme.typography.labelLarge
-          )
-          Text(
-            text = "${nft.saleInfoNft?.maxBidShort ?: "—"} ${nft.saleInfoNft?.acceptedPaymentToken.orEmpty()}",
-            style = MaterialTheme.typography.titleMedium
-          )
-        }
-      }
+      ListingCard(nft)
     }
 
     NftTabs(nft)
@@ -216,11 +199,16 @@ private fun NftContent(
 )
 @Composable
 private fun NftArtwork(nft: DomainNft) {
+  val image = nft.avifUrl ?: nft.webpUrl ?: nft.url
+
   Card(
     modifier = Modifier
       .fillMaxWidth()
       .aspectRatio(1f),
-    shape = RoundedCornerShape(24.dp)
+    shape = RoundedCornerShape(28.dp),
+    colors = CardDefaults.cardColors(
+      containerColor = MaterialTheme.colorScheme.surfaceVariant
+    )
   ) {
     if (nft.hasSecondNFT == true) {
       val pagerState = rememberPagerState(pageCount = { 2 })
@@ -228,71 +216,220 @@ private fun NftArtwork(nft: DomainNft) {
         state = pagerState,
         modifier = Modifier.fillMaxSize()
       ) { index ->
-        Box(
-          modifier = Modifier.fillMaxSize()
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
           GlideImage(
             model = if (index == 0) {
-              nft.url
+              image
             } else {
               "https://xoxno.com/api/getCow?identifier=${nft.identifier}"
             },
             contentDescription = nft.name,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
           )
-          if (index == 1) {
-            Card(
-              modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(12.dp)
-            ) {
-              Text(
-                text = "Upgraded",
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-              )
-            }
-          }
+
+          StatusPill(
+            text = if (index == 0) "Original" else "Upgraded",
+            modifier = Modifier
+              .align(Alignment.TopEnd)
+              .padding(14.dp)
+          )
         }
       }
     } else {
       GlideImage(
-        model = nft.url,
+        model = image,
         contentDescription = nft.name,
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop
       )
     }
   }
 }
 
 @Composable
+private fun NftIdentity(nft: DomainNft) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.Top,
+    horizontalArrangement = Arrangement.spacedBy(16.dp)
+  ) {
+    Column(
+      modifier = Modifier.weight(1f),
+      verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+      Text(
+        text = nft.name ?: "CowCow",
+        style = MaterialTheme.typography.headlineMedium,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis
+      )
+      Text(
+        text = nft.identifier.orEmpty(),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+      )
+    }
+
+    Surface(
+      shape = RoundedCornerShape(18.dp),
+      color = MaterialTheme.colorScheme.primaryContainer,
+      contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    ) {
+      Column(
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+      ) {
+        Text(
+          text = "RANK",
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.68f)
+        )
+        Text(
+          text = "#${nft.metadata?.rarity?.rank ?: "—"}",
+          style = MaterialTheme.typography.titleMedium
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun NftQuickFacts(
+  nft: DomainNft,
+  locale: Locale
+) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(10.dp)
+  ) {
+    QuickFact(
+      label = "Floor",
+      value = nft.floorValue?.let {
+        "${String.format(locale, "%.2f", it)} EGLD"
+      } ?: "—",
+      modifier = Modifier.weight(1f)
+    )
+    QuickFact(
+      label = "Status",
+      value = if (nft.onSale == true) "Listed" else "Held",
+      modifier = Modifier.weight(1f)
+    )
+    QuickFact(
+      label = "Upgrade",
+      value = if (nft.hasSecondNFT == true) "Yes" else "No",
+      modifier = Modifier.weight(1f)
+    )
+  }
+}
+
+@Composable
+private fun QuickFact(
+  label: String,
+  value: String,
+  modifier: Modifier = Modifier
+) {
+  Surface(
+    modifier = modifier,
+    shape = RoundedCornerShape(20.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant
+  ) {
+    Column(
+      modifier = Modifier.padding(14.dp),
+      verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+      Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+      )
+      Text(
+        text = value,
+        style = MaterialTheme.typography.titleSmall,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+    }
+  }
+}
+
+@Composable
+private fun ListingCard(nft: DomainNft) {
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(24.dp),
+    color = MaterialTheme.colorScheme.secondaryContainer,
+    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+  ) {
+    Column(
+      modifier = Modifier.padding(18.dp),
+      verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+      Text(
+        text = "Currently listed",
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f)
+      )
+      Text(
+        text = "${nft.saleInfoNft?.maxBidShort ?: "—"} ${nft.saleInfoNft?.acceptedPaymentToken.orEmpty()}",
+        style = MaterialTheme.typography.titleLarge
+      )
+    }
+  }
+}
+
+@Composable
+private fun StatusPill(
+  text: String,
+  modifier: Modifier = Modifier
+) {
+  Surface(
+    modifier = modifier,
+    shape = RoundedCornerShape(100.dp),
+    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+    contentColor = MaterialTheme.colorScheme.onSurface
+  ) {
+    Text(
+      text = text,
+      modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+      style = MaterialTheme.typography.labelSmall
+    )
+  }
+}
+
+@Composable
 private fun NftTabs(nft: DomainNft) {
   var tabIndex by remember { mutableIntStateOf(0) }
-  val tabs = listOf("Attributes", "Offers", "Activity")
+  val tabs = listOf("Attributes", "Offers")
 
   Column(
-    verticalArrangement = Arrangement.spacedBy(12.dp)
+    verticalArrangement = Arrangement.spacedBy(14.dp)
   ) {
     SecondaryTabRow(
       selectedTabIndex = tabIndex,
-      containerColor = MaterialTheme.colorScheme.surfaceVariant,
+      containerColor = MaterialTheme.colorScheme.background,
       contentColor = MaterialTheme.colorScheme.primary
     ) {
       tabs.forEachIndexed { index, title ->
         Tab(
           selected = tabIndex == index,
           onClick = { tabIndex = index },
-          text = { Text(title) }
+          text = {
+            Text(
+              text = title,
+              style = MaterialTheme.typography.labelLarge
+            )
+          }
         )
       }
     }
 
     when (tabIndex) {
       0 -> AttributesTab(nft.metadata?.attributes.orEmpty())
-      1 -> OffersTab(
-        nftHasOffers = nft.hasOffers.toBoolean(),
+      else -> OffersTab(
+        nftHasOffers = nft.hasOffers?.toBoolean() == true,
         offersInfo = nft.offersInfo
       )
-      else -> ActivityTab()
     }
   }
 }
@@ -307,11 +444,12 @@ private fun AttributesTab(attributes: List<Attributes>) {
   }
 
   Column(
-    verticalArrangement = Arrangement.spacedBy(8.dp)
+    verticalArrangement = Arrangement.spacedBy(10.dp)
   ) {
     attributes.forEach { attribute ->
       Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
           containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
@@ -319,31 +457,46 @@ private fun AttributesTab(attributes: List<Attributes>) {
         Row(
           modifier = Modifier
             .fillMaxWidth()
-            .padding(14.dp),
+            .padding(15.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
           Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
           ) {
             Text(
-              text = "${attribute.traitType}: ${attribute.value}",
+              text = attribute.traitType ?: "Trait",
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+              text = attribute.value ?: "—",
               style = MaterialTheme.typography.titleSmall
             )
             Text(
               text = attribute.floorPrice?.let {
-                "Floor: ${formatNumber(locale, "%.2f", it)} EGLD"
-              } ?: "Floor: None",
+                "Trait floor ${String.format(locale, "%.2f", it)} EGLD"
+              } ?: "No trait floor",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
 
-          Text(
-            text = "${attribute.occurance ?: 0} (${formatNumber(locale, "%.2f", (attribute.frequency ?: 0.0) * 100.0)}%)",
-            style = MaterialTheme.typography.labelLarge,
-            textAlign = TextAlign.End
-          )
+          Column(
+            horizontalAlignment = Alignment.End
+          ) {
+            Text(
+              text = "${String.format(locale, "%.1f", (attribute.frequency ?: 0.0) * 100.0)}%",
+              style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+              text = "${attribute.occurance ?: 0} items",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              textAlign = TextAlign.End
+            )
+          }
         }
       }
     }
@@ -356,12 +509,12 @@ private fun OffersTab(
   offersInfo: List<OffersInfo>
 ) {
   if (!nftHasOffers || offersInfo.isEmpty()) {
-    EmptySection("No offers on this NFT")
+    EmptySection("No active offers on this CowCow")
     return
   }
 
   Column(
-    verticalArrangement = Arrangement.spacedBy(8.dp)
+    verticalArrangement = Arrangement.spacedBy(10.dp)
   ) {
     offersInfo.forEach { offer ->
       val owner = offer.ownerUsername
@@ -376,6 +529,7 @@ private fun OffersTab(
 
       Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
           containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
@@ -383,30 +537,34 @@ private fun OffersTab(
         Row(
           modifier = Modifier
             .fillMaxWidth()
-            .padding(14.dp),
+            .padding(15.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Column {
+          Column(
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+          ) {
+            Text(
+              text = "Offer",
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Text(
               text = "${offer.EgldValue ?: "—"} ${offer.paymentToken.orEmpty()}",
               style = MaterialTheme.typography.titleSmall
             )
-            Text(
-              text = "From $owner",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
           }
+          Text(
+            text = owner,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
         }
       }
     }
   }
-}
-
-@Composable
-private fun ActivityTab() {
-  EmptySection("Activity timeline coming next")
 }
 
 @Composable
@@ -419,13 +577,8 @@ private fun EmptySection(message: String) {
   ) {
     Text(
       text = message,
+      style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant
     )
   }
 }
-
-private fun formatNumber(
-  locale: Locale,
-  pattern: String,
-  value: Double
-): String = String.format(locale, pattern, value)
