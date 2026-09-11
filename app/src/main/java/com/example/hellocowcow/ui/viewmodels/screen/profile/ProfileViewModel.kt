@@ -4,6 +4,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.hellocowcow.app.module.BaseViewModel
 import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.core.wallet.MvxSignTransactionResultParser
+import com.example.hellocowcow.core.wallet.WalletClient
+import com.example.hellocowcow.core.wallet.WalletEvent
 import com.example.hellocowcow.data.retrofit.mvxApi.request.Reward
 import com.example.hellocowcow.data.retrofit.mvxApi.request.Transaction
 import com.example.hellocowcow.data.transaction.ClaimTransactionFactory
@@ -12,11 +14,8 @@ import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.domain.models.DomainTransaction
 import com.example.hellocowcow.domain.repositories.NftRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
-import com.example.hellocowcow.ui.viewmodels.util.MyWalletConnect
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import com.reown.sign.client.Sign
-import com.reown.sign.client.SignClient
 import com.reown.util.bytesToHex
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ipfs.multibase.binary.Base64
@@ -26,7 +25,6 @@ import io.reactivex.rxjava3.kotlin.subscribeBy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import timber.log.Timber
 import java.math.RoundingMode
 import java.util.regex.Pattern
 import javax.inject.Inject
@@ -35,7 +33,7 @@ import javax.inject.Inject
 class ProfileViewModel @Inject constructor(
   private val nftRepository: NftRepository,
   private val transactionRepository: TransactionRepository,
-  private val wc: MyWalletConnect
+  private val walletClient: WalletClient
 ) : BaseViewModel() {
 
   private var address: String = ""
@@ -88,65 +86,67 @@ class ProfileViewModel @Inject constructor(
     pendingClaimRequestId = null
     _uiStateTx.value = UiStateTx.AwaitingSignature
 
-    val request = Sign.Params.Request(
+    walletClient.requestTransactionSignature(
       sessionTopic = topic,
-      method = MVX_SIGN_TRANSACTION_METHOD,
-      chainId = CowCowConfig.MAINNET_CAIP_CHAIN_ID,
-      params = gson.toJson(mapOf("transaction" to transaction))
-    )
-
-    SignClient.request(
-      request = request,
-      onSuccess = { sentRequest ->
-        pendingClaimRequestId = sentRequest.requestId
-        Timber.tag("ClaimRewards").d("Signing request sent: %s", sentRequest.requestId)
+      paramsJson = gson.toJson(mapOf("transaction" to transaction)),
+      onSent = { requestId ->
+        pendingClaimRequestId = requestId
       },
-      onError = { error ->
-        failClaim(error.throwable.message ?: "Unable to send signing request to xPortal")
+      onError = { message ->
+        failClaim(message)
       }
     )
   }
 
-  private fun observeWalletEvents() =
-    wc.dAppDelegate
-      .wcEventObservable
-      .subscribeBy(
-        onNext = { session ->
-          when (session) {
-            is Sign.Model.SessionRequestResponse -> handleSessionRequestResponse(session)
-            is Sign.Model.Error -> failClaim(session.throwable.message ?: "Wallet connection error")
-            else -> Unit
+  private fun observeWalletEvents() {
+    viewModelScope.launch {
+      walletClient.events.collect { event ->
+        when (event) {
+          is WalletEvent.TransactionSignatureResult -> {
+            handleTransactionSignatureResult(event)
           }
-        },
-        onError = { error ->
-          failClaim(error.message ?: "Wallet event stream failed")
+
+          is WalletEvent.TransactionSignatureError -> {
+            if (matchesPendingRequest(event.requestId)) {
+              failClaim("xPortal rejected the transaction: ${event.message}")
+            }
+          }
+
+          is WalletEvent.RequestExpired -> {
+            if (matchesPendingRequest(event.requestId)) {
+              failClaim("The xPortal signing request expired")
+            }
+          }
+
+          is WalletEvent.ConnectionError -> {
+            if (pendingClaimTransaction != null) {
+              failClaim(event.message)
+            }
+          }
         }
-      ).addTo(disposable)
-
-  private fun handleSessionRequestResponse(
-    response: Sign.Model.SessionRequestResponse
-  ) {
-    if (response.method != MVX_SIGN_TRANSACTION_METHOD) return
-
-    val transaction = pendingClaimTransaction ?: return
-    val expectedRequestId = pendingClaimRequestId
-    if (expectedRequestId != null && response.result.id != expectedRequestId) return
-
-    when (val result = response.result) {
-      is Sign.Model.JsonRpcResponse.JsonRpcError -> {
-        failClaim("xPortal rejected the transaction: ${result.message}")
-      }
-
-      is Sign.Model.JsonRpcResponse.JsonRpcResult -> {
-        MvxSignTransactionResultParser.parse(result.result)
-          .onSuccess { walletResult ->
-            broadcast(transaction.withWalletResult(walletResult))
-          }
-          .onFailure { error ->
-            failClaim(error.message ?: "Invalid response from xPortal")
-          }
       }
     }
+  }
+
+  private fun handleTransactionSignatureResult(
+    event: WalletEvent.TransactionSignatureResult
+  ) {
+    val transaction = pendingClaimTransaction ?: return
+    if (!matchesPendingRequest(event.requestId)) return
+
+    MvxSignTransactionResultParser.parse(event.payload)
+      .onSuccess { walletResult ->
+        broadcast(transaction.withWalletResult(walletResult))
+      }
+      .onFailure { error ->
+        failClaim(error.message ?: "Invalid response from xPortal")
+      }
+  }
+
+  private fun matchesPendingRequest(requestId: Long): Boolean {
+    val expectedRequestId = pendingClaimRequestId
+    return pendingClaimTransaction != null &&
+        (expectedRequestId == null || expectedRequestId == requestId)
   }
 
   private fun broadcast(transaction: Transaction) {
@@ -223,8 +223,4 @@ class ProfileViewModel @Inject constructor(
         address
       )
     ).map { it.returnData[0] }
-
-  private companion object {
-    const val MVX_SIGN_TRANSACTION_METHOD = "mvx_signTransaction"
-  }
 }

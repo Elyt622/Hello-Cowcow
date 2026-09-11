@@ -3,6 +3,7 @@ package com.example.hellocowcow.app.module.main.app
 import android.app.Application
 import android.content.pm.ApplicationInfo
 import com.example.hellocowcow.R
+import com.example.hellocowcow.core.wallet.ReownDAppDelegate
 import com.reown.android.Core
 import com.reown.android.CoreClient
 import com.reown.android.relay.ConnectionType
@@ -32,6 +33,7 @@ class App : Application() {
       icons = listOf("https://www.cowcow.io/static/media/logo_new.1bd828ac79a450fe1a9f789fd29a8793.svg"),
       redirect = getString(R.string.deep_link_url)
     )
+
     CoreClient.initialize(
       relayServerUrl = serverUrl,
       connectionType = connectionType,
@@ -41,12 +43,16 @@ class App : Application() {
       Timber.tag("CoreClient_Init_Error")
         .e(error.throwable.stackTraceToString())
     }
-    val init = Sign.Params.Init(core = CoreClient)
 
-    SignClient.initialize(init) { error ->
-      Timber.tag("SignClient_Init_Error")
-        .e(error.toString())
-    }
+    SignClient.initialize(
+      init = Sign.Params.Init(core = CoreClient),
+      onSuccess = {
+        ReownDAppDelegate.register()
+      },
+      onError = { error ->
+        Timber.tag("SignClient_Init_Error")
+          .e(error.throwable)
+      }
+    )
   }
-
 }
