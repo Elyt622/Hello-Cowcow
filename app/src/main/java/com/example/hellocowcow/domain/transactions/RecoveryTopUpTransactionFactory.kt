@@ -1,12 +1,12 @@
 package com.example.hellocowcow.domain.transactions
 
+import android.util.Base64
 import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.domain.models.MvxTransaction
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.nio.charset.StandardCharsets
-import java.util.Base64
 
 object RecoveryTopUpTransactionFactory {
 
@@ -33,8 +33,9 @@ object RecoveryTopUpTransactionFactory {
     val tokenHex = CowCowConfig.MOOVE_TOKEN_ID.toHexUtf8()
     val amountHex = atomicAmount.toString(16)
     val payload = "ESDTTransfer@$tokenHex@$amountHex"
-    val dataBase64 = Base64.getEncoder().encodeToString(
-      payload.toByteArray(StandardCharsets.UTF_8)
+    val dataBase64 = Base64.encodeToString(
+      payload.toByteArray(StandardCharsets.UTF_8),
+      Base64.NO_WRAP
     )
 
     val guardian = if (account.isGuarded) {
