@@ -1,26 +1,21 @@
 package com.example.hellocowcow.ui.viewmodels.screen.profile
 
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.hellocowcow.app.module.BaseViewModel
-import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.core.wallet.MvxSignTransactionResultParser
 import com.example.hellocowcow.core.wallet.WalletClient
 import com.example.hellocowcow.core.wallet.WalletEvent
-import com.example.hellocowcow.data.retrofit.mvxApi.request.Reward
 import com.example.hellocowcow.data.retrofit.mvxApi.request.Transaction
 import com.example.hellocowcow.data.rewards.MooveRewardDecoder
 import com.example.hellocowcow.data.transaction.ClaimTransactionFactory
 import com.example.hellocowcow.data.transaction.withWalletResult
 import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.domain.models.DomainTransaction
-import com.example.hellocowcow.domain.repositories.NftRepository
+import com.example.hellocowcow.domain.repositories.RewardsRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.reactivex.rxjava3.core.Observable
-import io.reactivex.rxjava3.kotlin.addTo
-import io.reactivex.rxjava3.kotlin.subscribeBy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -28,12 +23,11 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-  private val nftRepository: NftRepository,
+  private val rewardsRepository: RewardsRepository,
   private val transactionRepository: TransactionRepository,
   private val walletClient: WalletClient
-) : BaseViewModel() {
+) : ViewModel() {
 
-  private var address: String = ""
   private var pendingClaimTransaction: Transaction? = null
   private var pendingClaimRequestId: Long? = null
 
@@ -64,8 +58,21 @@ class ProfileViewModel @Inject constructor(
   }
 
   fun load(address: String) {
-    this.address = address
-    getUnclaimedMooveForUser()
+    _uiState.value = UiState.Loading
+
+    viewModelScope.launch {
+      runCatching {
+        rewardsRepository.getUserData(address)
+      }.mapCatching(MooveRewardDecoder::decodeClaimableAmount)
+        .onSuccess { amount ->
+          _uiState.value = UiState.Success(amount.toEngineeringString())
+        }
+        .onFailure { error ->
+          _uiState.value = UiState.Error(
+            error.message ?: "Unable to load MOOVE rewards"
+          )
+        }
+    }
   }
 
   fun requestClaimRewards(
@@ -175,31 +182,4 @@ class ProfileViewModel @Inject constructor(
     pendingClaimTransaction = null
     pendingClaimRequestId = null
   }
-
-  fun getUnclaimedMooveForUser() {
-    getAllDataForUser()
-      .map(MooveRewardDecoder::decodeClaimableAmount)
-      .subscribeBy(
-        onNext = { data ->
-          _uiState.value = UiState.Success(data.toEngineeringString())
-        },
-        onError = { error ->
-          _uiState.value = UiState.Error(error.message.toString())
-        }
-      ).addTo(disposable)
-  }
-
-  private fun getAllDataForUser(): Observable<String> =
-    nftRepository.getAllDataUsers(
-      Reward(
-        CowCowConfig.REWARDS_CONTRACT,
-        "getAllDataForUser",
-        "0",
-        arrayListOf(),
-        address
-      )
-    ).map { response ->
-      response.returnData.firstOrNull()
-        ?: throw IllegalStateException("Rewards contract returned no data")
-    }
 }

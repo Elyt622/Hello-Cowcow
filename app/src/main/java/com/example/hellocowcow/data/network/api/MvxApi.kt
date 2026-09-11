@@ -1,8 +1,10 @@
 package com.example.hellocowcow.data.network.api
 
+import com.example.hellocowcow.data.retrofit.mvxApi.request.Reward as RewardRequest
 import com.example.hellocowcow.data.retrofit.mvxApi.request.Transaction
 import com.example.hellocowcow.data.retrofit.mvxApi.response.Account
 import com.example.hellocowcow.data.retrofit.mvxApi.response.Nft
+import com.example.hellocowcow.data.retrofit.mvxApi.response.Reward as RewardResponse
 import com.example.hellocowcow.data.retrofit.mvxApi.response.Token
 import com.example.hellocowcow.data.retrofit.mvxApi.response.Transactions
 import io.reactivex.rxjava3.core.Observable
@@ -50,13 +52,18 @@ interface MvxApi {
 
   @POST("/query")
   fun getTotalRewardsToCollect(
-    @Body reward: com.example.hellocowcow.data.retrofit.mvxApi.request.Reward
-  ): Single<com.example.hellocowcow.data.retrofit.mvxApi.response.Reward>
+    @Body reward: RewardRequest
+  ): Single<RewardResponse>
 
   @POST("/query")
   fun getAllDataUsers(
-    @Body request: com.example.hellocowcow.data.retrofit.mvxApi.request.Reward
-  ): Observable<com.example.hellocowcow.data.retrofit.mvxApi.response.Reward>
+    @Body request: RewardRequest
+  ): Observable<RewardResponse>
+
+  @POST("/query")
+  suspend fun queryContract(
+    @Body request: RewardRequest
+  ): RewardResponse
 
   @POST("/transactions")
   suspend fun sendTransaction(
