@@ -87,7 +87,15 @@ fun ProfileScreen(
       )
 
       when (val currentTransactionState = transactionState) {
-        is ProfileViewModel.UiStateTx.Send -> CustomAlert(tx = currentTransactionState.tx)
+        is ProfileViewModel.UiStateTx.Confirmed -> CustomAlert(tx = currentTransactionState.tx)
+        is ProfileViewModel.UiStateTx.Failed -> InlineError(
+          currentTransactionState.reason
+            ?.takeIf { it.isNotBlank() }
+            ?: "The MOOVE claim failed on MultiversX"
+        )
+        is ProfileViewModel.UiStateTx.ConfirmationTimedOut -> InlineNotice(
+          "Claim broadcast successfully, but final on-chain confirmation was not obtained yet. Check the transaction in Explorer."
+        )
         is ProfileViewModel.UiStateTx.Error -> InlineError(currentTransactionState.error)
         else -> Unit
       }
@@ -167,7 +175,8 @@ private fun RewardsCard(
   onClaim: () -> Unit
 ) {
   val busy = transactionState is ProfileViewModel.UiStateTx.AwaitingSignature ||
-      transactionState is ProfileViewModel.UiStateTx.Broadcasting
+      transactionState is ProfileViewModel.UiStateTx.Broadcasting ||
+      transactionState is ProfileViewModel.UiStateTx.Pending
 
   Surface(
     modifier = Modifier.fillMaxWidth(),
@@ -245,17 +254,8 @@ private fun RewardsCard(
 
       when (transactionState) {
         is ProfileViewModel.UiStateTx.AwaitingSignature -> ClaimStatus("Confirm in xPortal")
-        is ProfileViewModel.UiStateTx.Broadcasting -> Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-          CircularProgressIndicator(
-            modifier = Modifier.size(16.dp),
-            strokeWidth = 2.dp,
-            color = MaterialTheme.colorScheme.onSecondaryContainer
-          )
-          ClaimStatus("Broadcasting on MultiversX…")
-        }
+        is ProfileViewModel.UiStateTx.Broadcasting -> ClaimProgress("Broadcasting on MultiversX…")
+        is ProfileViewModel.UiStateTx.Pending -> ClaimProgress("Waiting for on-chain confirmation…")
         else -> Unit
       }
 
@@ -267,6 +267,21 @@ private fun RewardsCard(
         )
       }
     }
+  }
+}
+
+@Composable
+private fun ClaimProgress(message: String) {
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp)
+  ) {
+    CircularProgressIndicator(
+      modifier = Modifier.size(16.dp),
+      strokeWidth = 2.dp,
+      color = MaterialTheme.colorScheme.onSecondaryContainer
+    )
+    ClaimStatus(message)
   }
 }
 
@@ -293,6 +308,22 @@ private fun InlineError(message: String) {
       modifier = Modifier.padding(11.dp),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onErrorContainer
+    )
+  }
+}
+
+@Composable
+private fun InlineNotice(message: String) {
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(12.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant
+  ) {
+    Text(
+      text = message,
+      modifier = Modifier.padding(11.dp),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant
     )
   }
 }

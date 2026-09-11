@@ -1,6 +1,7 @@
 package com.example.hellocowcow.app.di.network
 
 import com.example.hellocowcow.data.network.api.MvxApi
+import com.example.hellocowcow.data.network.api.MvxGatewayApi
 import com.example.hellocowcow.data.network.api.ProxyXoxnoApi
 import com.example.hellocowcow.data.network.api.XoxnoApi
 import com.google.gson.GsonBuilder
@@ -38,6 +39,15 @@ object NetworkModule {
 
   @Provides
   @Singleton
+  fun provideMvxGatewayApi(): MvxGatewayApi =
+    Retrofit.Builder()
+      .baseUrl("https://gateway.multiversx.com/")
+      .client(httpClient)
+      .addConverterFactory(GsonConverterFactory.create(GsonBuilder().create()))
+      .build().create(MvxGatewayApi::class.java)
+
+  @Provides
+  @Singleton
   fun provideProxyXoxnoApi(): ProxyXoxnoApi =
     Retrofit.Builder()
       .baseUrl("https://proxy-api.xoxno.com/")
@@ -55,5 +65,4 @@ object NetworkModule {
       .addConverterFactory(GsonConverterFactory.create(GsonBuilder().create()))
       .addCallAdapterFactory(RxJava3CallAdapterFactory.create())
       .build().create(XoxnoApi::class.java)
-
 }

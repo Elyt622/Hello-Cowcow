@@ -12,6 +12,7 @@ import com.example.hellocowcow.domain.models.RecoverySnapshot
 import com.example.hellocowcow.domain.repositories.RecoveryRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
 import com.example.hellocowcow.domain.transactions.RecoveryTopUpTransactionFactory
+import com.example.hellocowcow.domain.transactions.TransactionTracker
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +26,7 @@ import javax.inject.Inject
 class RecoveryViewModel @Inject constructor(
   private val recoveryRepository: RecoveryRepository,
   private val transactionRepository: TransactionRepository,
+  private val transactionTracker: TransactionTracker,
   private val walletClient: WalletClient
 ) : ViewModel() {
 
@@ -38,7 +40,10 @@ class RecoveryViewModel @Inject constructor(
     data object Idle : TransactionUiState
     data object AwaitingSignature : TransactionUiState
     data object Broadcasting : TransactionUiState
-    data class Success(val transaction: DomainTransaction) : TransactionUiState
+    data class Pending(val transaction: DomainTransaction) : TransactionUiState
+    data class Confirmed(val transaction: DomainTransaction) : TransactionUiState
+    data class Failed(val transaction: DomainTransaction, val reason: String?) : TransactionUiState
+    data class ConfirmationTimedOut(val transaction: DomainTransaction) : TransactionUiState
     data class Error(val message: String) : TransactionUiState
   }
 
@@ -185,12 +190,41 @@ class RecoveryViewModel @Inject constructor(
       runCatching { transactionRepository.sendTransaction(transaction) }
         .onSuccess { sent ->
           clearPending()
-          _transactionState.value = TransactionUiState.Success(sent)
-          currentAddress?.let(::load)
+          trackBroadcastTransaction(sent)
         }
         .onFailure { error ->
           failTopUp(error.message ?: "Unable to broadcast the recovery top-up")
         }
+    }
+  }
+
+  private suspend fun trackBroadcastTransaction(transaction: DomainTransaction) {
+    val txHash = transaction.txHash
+    if (txHash.isNullOrBlank()) {
+      _transactionState.value = TransactionUiState.Error(
+        "MultiversX did not return a transaction hash"
+      )
+      return
+    }
+
+    _transactionState.value = TransactionUiState.Pending(transaction)
+
+    when (val result = transactionTracker.awaitFinalStatus(txHash)) {
+      is TransactionTracker.Result.Confirmed -> {
+        _transactionState.value = TransactionUiState.Confirmed(transaction)
+        currentAddress?.let(::load)
+      }
+
+      is TransactionTracker.Result.Failed -> {
+        _transactionState.value = TransactionUiState.Failed(
+          transaction = transaction,
+          reason = result.status.reason
+        )
+      }
+
+      is TransactionTracker.Result.TimedOut -> {
+        _transactionState.value = TransactionUiState.ConfirmationTimedOut(transaction)
+      }
     }
   }
 
