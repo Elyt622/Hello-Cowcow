@@ -3,12 +3,11 @@ package com.example.hellocowcow.ui.viewmodels.screen.profile
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import com.example.hellocowcow.app.module.BaseViewModel
+import com.example.hellocowcow.data.recovery.CowCowUserDataDecoder
 import com.example.hellocowcow.data.retrofit.mvxApi.request.Reward
 import com.example.hellocowcow.domain.models.DomainNft
 import com.example.hellocowcow.domain.repositories.NftRepository
-import com.reown.util.bytesToHex
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.ipfs.multibase.binary.Base64
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.kotlin.addTo
 import io.reactivex.rxjava3.kotlin.subscribeBy
@@ -41,32 +40,9 @@ class StakeViewModel @Inject constructor(
 
   fun getAllStakingCow() =
     getAllDataForUser()
-      .map { data ->
-        val segmentedHexList = mutableListOf<String>()
-        val decoded: String = Base64.decodeBase64(data).bytesToHex()
-        for (i in decoded.indices step 4) {
-          val endIndex = kotlin.math.min(i + 4, decoded.length)
-          val segment = decoded.substring(i, endIndex)
-          if (!segment.contains("0000"))
-            if (segment.startsWith("00"))
-              segmentedHexList.add(segment.substring(2))
-            else
-              segmentedHexList.add(segment)
-        }
-        val destinationArray = segmentedHexList
-          .subList(
-            1,
-            segmentedHexList[0].toInt(16) + 1
-          )
-          .toList()
-        destinationArray
-      }.map { list ->
-        val mutableList = mutableListOf<String>()
-        for (element in list) {
-          mutableList.add("COW-cd463d-$element")
-        }
-        mutableList
-      }.flatMapIterable { it }
+      .map(CowCowUserDataDecoder::decodeStakedCowNonces)
+      .map { nonces -> nonces.map { nonce -> "COW-cd463d-$nonce" } }
+      .flatMapIterable { it }
       .flatMap { nft ->
         nftRepository.getNftXoxno(nft).toObservable()
       }.toList()
@@ -83,8 +59,7 @@ class StakeViewModel @Inject constructor(
         }
       ).addTo(disposable)
 
-  private fun getAllDataForUser()
-      : Observable<String> =
+  private fun getAllDataForUser(): Observable<String> =
     nftRepository.getAllDataUsers(
       Reward(
         "erd1qqqqqqqqqqqqqpgqqgzzsl0re9e3u0t3mhv3jwg6zu63zssd7yqs3uu9jk",
@@ -95,4 +70,3 @@ class StakeViewModel @Inject constructor(
       )
     ).map { it.returnData[0] }
 }
-
