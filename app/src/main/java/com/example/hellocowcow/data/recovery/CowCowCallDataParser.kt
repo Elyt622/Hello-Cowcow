@@ -1,5 +1,6 @@
 package com.example.hellocowcow.data.recovery
 
+import com.example.hellocowcow.domain.recovery.CowCowNonceCodec
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 
@@ -10,11 +11,12 @@ object CowCowCallDataParser {
     val parts = decoded.split('@')
     if (parts.firstOrNull() != function) return emptyList()
 
-    return parts.drop(1).mapNotNull { raw ->
-      raw.lowercase().takeIf { nonce ->
-        nonce.matches(Regex("[0-9a-f]{4}")) && nonce != "0000"
-      }
-    }
+    val rawArguments = parts.drop(1)
+    if (rawArguments.isEmpty()) return emptyList()
+
+    return runCatching {
+      rawArguments.map(CowCowNonceCodec::normalize)
+    }.getOrDefault(emptyList())
   }
 
   fun decodeTransactionData(data: String?): String? {
