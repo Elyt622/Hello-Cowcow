@@ -9,6 +9,7 @@ on:
       - main
       - hello-cowcow-2026-foundation
       - hello-cowcow-2026-shell
+      - hello-cowcow-2026-recovery
 
 permissions:
   contents: read
