@@ -8,7 +8,17 @@ data class TransactionFeeEstimate(
   val gasUnits: Long,
   val gasLimit: Long,
   val simulated: Boolean
-)
+) {
+  companion object {
+    val ZERO = TransactionFeeEstimate(
+      feeEgld = BigDecimal.ZERO,
+      maxFeeEgld = BigDecimal.ZERO,
+      gasUnits = 0L,
+      gasLimit = 0L,
+      simulated = true
+    )
+  }
+}
 
 data class RecoveryNetworkFeeEstimate(
   val topUp: TransactionFeeEstimate?,
