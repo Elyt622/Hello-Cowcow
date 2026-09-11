@@ -8,5 +8,6 @@ data class RecoverySnapshot(
   val contractMooveBalance: BigDecimal,
   val claimLiquidityGap: BigDecimal,
   val amountToAcquire: BigDecimal,
-  val recommendedTopUp: BigDecimal
+  val recommendedTopUp: BigDecimal,
+  val stakedCowNonces: List<String>
 )
