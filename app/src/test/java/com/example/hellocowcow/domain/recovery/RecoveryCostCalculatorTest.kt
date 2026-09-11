@@ -8,7 +8,7 @@ import org.junit.Test
 class RecoveryCostCalculatorTest {
 
   @Test
-  fun `calculates expected and worst case loss from round trip quotes`() {
+  fun `separates DEX friction network fees and total loss`() {
     val estimate = RecoveryCostCalculator.calculate(
       RecoveryCostEstimateInput(
         buyCostEgld = BigDecimal("0.1000"),
@@ -18,12 +18,15 @@ class RecoveryCostCalculatorTest {
       )
     )
 
-    assertEquals(BigDecimal("0.0018"), estimate.expectedLossEgld)
-    assertEquals(BigDecimal("0.0031"), estimate.worstCaseLossEgld)
+    assertEquals(BigDecimal("0.0012"), estimate.expectedDexLossEgld)
+    assertEquals(BigDecimal("0.0025"), estimate.worstCaseDexLossEgld)
+    assertEquals(BigDecimal("0.0006"), estimate.estimatedNetworkFeesEgld)
+    assertEquals(BigDecimal("0.0018"), estimate.expectedTotalLossEgld)
+    assertEquals(BigDecimal("0.0031"), estimate.worstCaseTotalLossEgld)
   }
 
   @Test
-  fun `does not report negative loss when sell quote exceeds buy cost`() {
+  fun `does not report negative DEX loss when sell quote exceeds buy cost`() {
     val estimate = RecoveryCostCalculator.calculate(
       RecoveryCostEstimateInput(
         buyCostEgld = BigDecimal("0.1000"),
@@ -33,7 +36,8 @@ class RecoveryCostCalculatorTest {
       )
     )
 
-    assertEquals(BigDecimal.ZERO, estimate.expectedLossEgld)
+    assertEquals(BigDecimal.ZERO, estimate.expectedDexLossEgld)
+    assertEquals(BigDecimal("0.0005"), estimate.expectedTotalLossEgld)
   }
 
   @Test
@@ -51,7 +55,7 @@ class RecoveryCostCalculatorTest {
   }
 
   @Test
-  fun `zero buy cost uses full recovery ratio`() {
+  fun `zero buy cost leaves only network fees`() {
     val estimate = RecoveryCostCalculator.calculate(
       RecoveryCostEstimateInput(
         buyCostEgld = BigDecimal.ZERO,
@@ -62,6 +66,7 @@ class RecoveryCostCalculatorTest {
     )
 
     assertEquals(BigDecimal.ONE, estimate.expectedRecoveryRatio)
-    assertEquals(BigDecimal("0.0002"), estimate.expectedLossEgld)
+    assertEquals(BigDecimal.ZERO, estimate.expectedDexLossEgld)
+    assertEquals(BigDecimal("0.0002"), estimate.expectedTotalLossEgld)
   }
 }
