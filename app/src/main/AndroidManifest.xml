@@ -15,12 +15,6 @@
             android:name=".app.module.nft.NftActivity"
             android:exported="false" />
         <activity
-            android:name=".app.module.login.activity.LoginActivity"
-            android:exported="false" />
-        <activity
-            android:name=".app.module.splash.SplashActivity"
-            android:exported="false" />
-        <activity
             android:name=".app.module.main.activity.MainActivity"
             android:exported="true">
             <intent-filter>

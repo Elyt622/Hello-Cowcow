@@ -21,6 +21,16 @@ fun HostController(
   onContinueAsGuest: () -> Unit,
   modifier: Modifier = Modifier
 ) {
+  val continueBrowsing: () -> Unit = {
+    onContinueAsGuest()
+    navHostController.navigate(AppDestination.Explore.route) {
+      popUpTo(AppDestination.Explore.route) {
+        inclusive = false
+      }
+      launchSingleTop = true
+    }
+  }
+
   NavHost(
     navController = navHostController,
     startDestination = AppDestination.Explore.route,
@@ -53,7 +63,7 @@ fun HostController(
             isConnecting = false,
             error = null,
             onConnect = onConnectWallet,
-            onContinueAsGuest = onContinueAsGuest
+            onContinueAsGuest = continueBrowsing
           )
         }
 
@@ -62,7 +72,7 @@ fun HostController(
             isConnecting = true,
             error = null,
             onConnect = onConnectWallet,
-            onContinueAsGuest = onContinueAsGuest
+            onContinueAsGuest = continueBrowsing
           )
         }
 
@@ -71,7 +81,7 @@ fun HostController(
             isConnecting = false,
             error = sessionState.message,
             onConnect = onConnectWallet,
-            onContinueAsGuest = onContinueAsGuest
+            onContinueAsGuest = continueBrowsing
           )
         }
       }

@@ -12,6 +12,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.hellocowcow.ui.composables.MainScaffold
 import com.example.hellocowcow.ui.theme.HelloCowCowTheme
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
   private val viewModel by viewModels<AppViewModel>()
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    installSplashScreen()
     super.onCreate(savedInstanceState)
 
     setContent {
