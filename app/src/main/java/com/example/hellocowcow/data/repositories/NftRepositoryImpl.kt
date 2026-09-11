@@ -83,8 +83,9 @@ class NftRepositoryImpl @Inject constructor(
       .observeOn(mySchedulers.main)
 
   override fun getUpgradedCowsCount(): Observable<Upgraded> =
-    proxyXoxnoApi.getUpgradedCowsCount()
-      .subscribeOn(mySchedulers.io)
+    // The legacy encoded XOXNO /searchNFTs route no longer exists. Keep the
+    // collection screen usable until this metric is migrated to /nft/query.
+    Observable.just(Upgraded(count = null))
       .observeOn(mySchedulers.main)
 
   override fun getStakingCowsCount(): Single<Int> =
@@ -106,9 +107,9 @@ class NftRepositoryImpl @Inject constructor(
       .observeOn(mySchedulers.main)
 
   override fun getLastTenSold(): Observable<ArrayList<Resources>> =
-    proxyXoxnoApi.getLastTenSold()
-      .map { it.resources }
-      .subscribeOn(mySchedulers.io)
+    // The old encoded /getTradingActivity proxy endpoint was removed by XOXNO.
+    // Returning an empty public state avoids a startup 404 while the model is
+    // migrated to the current /activity/query response shape.
+    Observable.just(arrayListOf())
       .observeOn(mySchedulers.main)
-
 }
