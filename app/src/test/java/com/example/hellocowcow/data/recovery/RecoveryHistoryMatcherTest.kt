@@ -2,6 +2,7 @@ package com.example.hellocowcow.data.recovery
 
 import com.example.hellocowcow.core.config.CowCowConfig
 import com.example.hellocowcow.data.retrofit.mvxApi.response.Transactions
+import com.example.hellocowcow.domain.recovery.RecoveryEvidence
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,7 +31,7 @@ class RecoveryHistoryMatcherTest {
   }
 
   @Test
-  fun `pending batch becomes claimable exactly seven days after unstake`() {
+  fun `pending batch uses observed successful final claim delay conservatively`() {
     val unstake = transaction(
       hash = "e9455f080ad8ca3604b503fea5204845c174031edf079780401d8a906b7b415a",
       timestamp = 1_783_949_916,
@@ -44,8 +45,11 @@ class RecoveryHistoryMatcherTest {
 
     assertEquals(listOf("0788", "0eb2", "267e", "0fde"), batch.cowNonces)
     assertEquals(1_783_949_916L, batch.unstakedAtEpochSeconds)
-    assertEquals(1_784_554_716L, batch.claimableAtEpochSeconds)
-    assertEquals(CowCowConfig.UNBONDING_PERIOD_SECONDS, batch.claimableAtEpochSeconds - batch.unstakedAtEpochSeconds)
+    assertEquals(1_784_557_524L, batch.claimableAtEpochSeconds)
+    assertEquals(
+      RecoveryEvidence.OBSERVED_SUCCESSFUL_FINAL_CLAIM_DELAY_SECONDS,
+      batch.claimableAtEpochSeconds - batch.unstakedAtEpochSeconds
+    )
   }
 
   @Test
