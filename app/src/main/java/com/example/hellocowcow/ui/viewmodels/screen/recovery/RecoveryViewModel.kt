@@ -330,12 +330,15 @@ class RecoveryViewModel @Inject constructor(
 
   private suspend fun validateTransactionBeforeSigning(transaction: MvxTransaction): Boolean {
     return runCatching {
-      transactionCostRepository.estimateFee(transaction)
+      val estimate = transactionCostRepository.estimateFee(transaction)
+      check(estimate.simulated) {
+        "Live MultiversX transaction simulation is unavailable; signing is blocked until the transaction can be revalidated"
+      }
     }.fold(
       onSuccess = { true },
       onFailure = { error ->
         failAction(
-          error.message ?: "Unable to verify current MultiversX gas before signing"
+          error.message ?: "Unable to verify current MultiversX transaction execution before signing"
         )
         false
       }
