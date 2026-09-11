@@ -14,24 +14,26 @@ interface ProxyXoxnoApi {
   @GET("/nfts/{identifier}")
   fun getNft(
     @Path("identifier") identifier: String
-  ) : Single<Nft>
+  ): Single<Nft>
+
+  @GET("/nfts/{identifier}")
+  suspend fun getNftDetail(
+    @Path("identifier") identifier: String
+  ): Nft
 
   @GET("/accounts/{address}/listings")
   fun getCowsListing(
     @Path("address") address: String
-  ) : Observable<Collection>
+  ): Observable<Collection>
 
   @GET("/accounts/{address}/inventory")
   fun getCowsInWallet(
-    @Path("address") address : String
-  ) : Observable<Collection>
+    @Path("address") address: String
+  ): Observable<Collection>
 
   @GET("/searchNFTs/eyJmaWx0ZXJzIjp7Imhhc1NlY29uZE5GVCI6dHJ1ZX0sImNvbGxlY3Rpb24iOiJDT1ctY2Q0NjNkIiwidG9wIjoxfQ==")
-  fun getUpgradedCowsCount()
-      : Observable<Upgraded>
+  fun getUpgradedCowsCount(): Observable<Upgraded>
 
   @GET("/getTradingActivity/eyJmaWx0ZXJzIjp7ImNvbGxlY3Rpb24iOlsiQ09XLWNkNDYzZCJdLCJ0b2tlbnMiOltdLCJhY3Rpb24iOltdLCJyYW5nZSI6eyJtaW4iOjAsIm1heCI6OTAwNzE5OTI1NDc0MDk5MSwidHlwZSI6InByaWNlIn0sImF0dHJpYnV0ZXMiOltdLCJtYXJrZXRwbGFjZSI6W119LCJ0b3AiOjEwLCJza2lwIjowLCJzZWxlY3QiOltdLCJvcmRlckJ5IjpbInRpbWVzdGFtcCBkZXNjIl19")
-  fun getLastTenSold()
-      : Observable<Activity>
-
+  fun getLastTenSold(): Observable<Activity>
 }

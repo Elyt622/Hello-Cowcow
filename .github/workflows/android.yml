@@ -8,6 +8,7 @@ on:
     branches:
       - main
       - hello-cowcow-2026-foundation
+      - hello-cowcow-2026-shell
 
 permissions:
   contents: read

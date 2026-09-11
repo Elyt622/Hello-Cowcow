@@ -1,82 +1,77 @@
 package com.example.hellocowcow.app.module.main.activity
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import com.example.hellocowcow.app.module.BaseActivity
-import com.example.hellocowcow.ui.composables.MainScaffold
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.hellocowcow.ui.navigation.AppShell
 import com.example.hellocowcow.ui.theme.HelloCowCowTheme
 import com.example.hellocowcow.ui.viewmodels.activity.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
-import es.dmoral.toasty.Toasty
 
 @AndroidEntryPoint
-class MainActivity : BaseActivity() {
+class MainActivity : ComponentActivity() {
 
   private val viewModel by viewModels<MainViewModel>()
 
-  private lateinit var address: String
-  private lateinit var topic: String
-
   override fun onCreate(savedInstanceState: Bundle?) {
+    installSplashScreen()
     super.onCreate(savedInstanceState)
-    address = intent.getStringExtra("ADDRESS").toString()
-    topic = intent.getStringExtra("TOPIC").toString()
-
-    viewModel.getAccount(address)
 
     setContent {
-      val uiState by viewModel.currentAccount.collectAsState()
-      HelloCowCowTheme(dynamicColor = false) {
-        Surface(
-          modifier = Modifier
-            .background(MaterialTheme.colorScheme.background)
-            .fillMaxSize()
-        ) {
-          when (uiState) {
-            is MainViewModel.UiState.Loading -> {
-              Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-              ) {
-                CircularProgressIndicator(
-                  modifier = Modifier.width(60.dp),
-                  color = MaterialTheme.colorScheme.primary
-                )
-              }
-            }
-            is MainViewModel.UiState.Success -> {
-              (uiState as MainViewModel.UiState.Success)
-                .data.let { account ->
-                  MainScaffold(account, topic)
-                }
-            }
-            is MainViewModel.UiState.Error -> {
-              (uiState as MainViewModel.UiState.Error)
-                .error.let { err ->
-                  Toasty.error(
-                    baseContext,
-                    err,
-                    Toast.LENGTH_SHORT
-                  ).show()
-                }
-            }
+      val walletState by viewModel.walletState.collectAsStateWithLifecycle()
+
+      LaunchedEffect(viewModel) {
+        viewModel.effects.collect { effect ->
+          when (effect) {
+            is MainViewModel.UiEffect.OpenXPortal -> openXPortal(effect.pairingUri)
           }
         }
       }
+
+      HelloCowCowTheme(dynamicColor = false) {
+        Surface(
+          modifier = Modifier.fillMaxSize(),
+          color = MaterialTheme.colorScheme.background
+        ) {
+          AppShell(
+            walletState = walletState,
+            onConnectWallet = viewModel::connectWallet,
+            onRetryWallet = viewModel::refreshWalletSession,
+            onExit = { finish() }
+          )
+        }
+      }
     }
+  }
+
+  override fun onResume() {
+    super.onResume()
+    viewModel.refreshWalletSession()
+  }
+
+  private fun openXPortal(pairingUri: String) {
+    val deepLink = Uri.parse("https://maiar.page.link/")
+      .buildUpon()
+      .appendQueryParameter("apn", "com.multiversx.maiar.wallet")
+      .appendQueryParameter("isi", "1519405832")
+      .appendQueryParameter("ibi", "com.multiversx.maiar.wallet")
+      .appendQueryParameter(
+        "link",
+        "https://maiar.com/?wallet-connect=$pairingUri"
+      )
+      .build()
+
+    startActivity(Intent(Intent.ACTION_VIEW, deepLink))
   }
 }

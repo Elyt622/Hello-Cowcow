@@ -33,11 +33,23 @@ internal object ReownDAppDelegate : SignClient.DappDelegate {
 
   fun register() {
     SignClient.setDappDelegate(this)
+    emit(WalletEvent.Ready)
   }
 
   override fun onSessionApproved(
     approvedSession: Sign.Model.ApprovedSession
   ) {
+    val session = walletSessionFromAccounts(
+      topic = approvedSession.topic,
+      accounts = approvedSession.accounts
+    )
+
+    if (session != null) {
+      emit(WalletEvent.SessionApproved(session))
+    } else {
+      emit(WalletEvent.ConnectionError("xPortal session does not contain a MultiversX mainnet account"))
+    }
+
     Timber.tag("Session_Approved")
       .d("Approved session's topic is: %s", approvedSession.topic)
   }
@@ -45,12 +57,19 @@ internal object ReownDAppDelegate : SignClient.DappDelegate {
   override fun onSessionRejected(
     rejectedSession: Sign.Model.RejectedSession
   ) {
+    emit(WalletEvent.ConnectionError("xPortal rejected the connection: ${rejectedSession.reason}"))
     Timber.tag("Session_Rejected").d(rejectedSession.reason)
   }
 
   override fun onSessionUpdate(
     updatedSession: Sign.Model.UpdatedSession
   ) {
+    walletSessionFromAccounts(
+      topic = updatedSession.topic,
+      accounts = updatedSession.namespaces.values.flatMap { it.accounts }
+    )?.let { session ->
+      emit(WalletEvent.SessionApproved(session))
+    }
     Timber.tag("Session_Updated").d(updatedSession.toString())
   }
 
@@ -77,6 +96,19 @@ internal object ReownDAppDelegate : SignClient.DappDelegate {
   override fun onSessionDelete(
     deletedSession: Sign.Model.DeletedSession
   ) {
+    when (deletedSession) {
+      is Sign.Model.DeletedSession.Success -> {
+        emit(WalletEvent.SessionDisconnected(deletedSession.topic))
+      }
+
+      is Sign.Model.DeletedSession.Error -> {
+        emit(
+          WalletEvent.ConnectionError(
+            deletedSession.error.message ?: "WalletConnect session was deleted"
+          )
+        )
+      }
+    }
     Timber.tag("Session_Deleted").d(deletedSession.toString())
   }
 

@@ -17,6 +17,16 @@ data class WalletSession(
 )
 
 sealed interface WalletEvent {
+  data object Ready : WalletEvent
+
+  data class SessionApproved(
+    val session: WalletSession
+  ) : WalletEvent
+
+  data class SessionDisconnected(
+    val topic: String?
+  ) : WalletEvent
+
   data class TransactionSignatureResult(
     val requestId: Long,
     val payload: Any?
@@ -56,6 +66,23 @@ interface WalletClient {
   )
 }
 
+internal fun walletSessionFromAccounts(
+  topic: String,
+  accounts: Iterable<String>
+): WalletSession? {
+  val accountPrefix = "${CowCowConfig.MAINNET_CAIP_CHAIN_ID}:"
+  val address = accounts
+    .firstOrNull { it.startsWith(accountPrefix) }
+    ?.removePrefix(accountPrefix)
+    ?.takeIf { it.isNotBlank() }
+    ?: return null
+
+  return WalletSession(
+    address = address,
+    topic = topic
+  )
+}
+
 @Singleton
 class ReownWalletClient @Inject constructor() : WalletClient {
 
@@ -65,17 +92,9 @@ class ReownWalletClient @Inject constructor() : WalletClient {
     val session = SignClient.getListOfActiveSessions().firstOrNull()
       ?: return@withContext null
 
-    val account = session.namespaces.values
-      .asSequence()
-      .flatMap { it.accounts.asSequence() }
-      .firstOrNull { it.startsWith("${CowCowConfig.MAINNET_CAIP_CHAIN_ID}:") }
-      ?.removePrefix("${CowCowConfig.MAINNET_CAIP_CHAIN_ID}:")
-      ?.takeIf { it.isNotBlank() }
-      ?: return@withContext null
-
-    WalletSession(
-      address = account,
-      topic = session.topic
+    walletSessionFromAccounts(
+      topic = session.topic,
+      accounts = session.namespaces.values.flatMap { it.accounts }
     )
   }
 

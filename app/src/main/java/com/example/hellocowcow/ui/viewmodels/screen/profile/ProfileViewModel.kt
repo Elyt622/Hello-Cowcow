@@ -126,6 +126,10 @@ class ProfileViewModel @Inject constructor(
               failClaim(event.message)
             }
           }
+
+          WalletEvent.Ready,
+          is WalletEvent.SessionApproved,
+          is WalletEvent.SessionDisconnected -> Unit
         }
       }
     }

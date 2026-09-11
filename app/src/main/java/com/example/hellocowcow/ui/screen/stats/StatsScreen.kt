@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.hellocowcow.ui.screen.stats.tabs.CollectionScreen
 import com.example.hellocowcow.ui.screen.stats.tabs.TokenScreen
 import com.example.hellocowcow.ui.viewmodels.screen.stats.CollectionViewModel
@@ -56,14 +56,14 @@ fun StatsScreen() {
 
 @Composable
 fun TabScreen() {
-
   var tabIndex by remember { mutableIntStateOf(0) }
-
   val tabs = listOf("Moove", "Cow")
 
-  Column(modifier = Modifier
-    .padding(top = 90.dp)
-    .fillMaxWidth()) {
+  Column(
+    modifier = Modifier
+      .padding(top = 90.dp)
+      .fillMaxWidth()
+  ) {
     TabRow(
       selectedTabIndex = tabIndex,
       containerColor = MaterialTheme.colorScheme.primary,

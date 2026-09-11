@@ -29,20 +29,19 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.example.hellocowcow.R
 import com.example.hellocowcow.data.retrofit.proxyXoxnoApi.Resources
-import com.example.hellocowcow.domain.models.ItemNav
 import com.example.hellocowcow.ui.viewmodels.screen.home.HomeViewModel
 import java.util.Locale
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun HomeScreen(
-  navController: NavController,
-  viewModel: HomeViewModel
+  viewModel: HomeViewModel,
+  onCollectionClick: () -> Unit,
+  onPortfolioClick: () -> Unit
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val uiStateSold by viewModel.uiStateSold.collectAsStateWithLifecycle()
@@ -56,8 +55,8 @@ fun HomeScreen(
   ) {
     item {
       HomeHeader(
-        onStatsClick = { navController.navigate(ItemNav.Stats.route) },
-        onProfileClick = { navController.navigate(ItemNav.Profile.route) }
+        onCollectionClick = onCollectionClick,
+        onPortfolioClick = onPortfolioClick
       )
     }
 
@@ -123,8 +122,8 @@ fun HomeScreen(
 
 @Composable
 private fun HomeHeader(
-  onStatsClick: () -> Unit,
-  onProfileClick: () -> Unit
+  onCollectionClick: () -> Unit,
+  onPortfolioClick: () -> Unit
 ) {
   Column(
     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -136,7 +135,7 @@ private fun HomeHeader(
         color = MaterialTheme.colorScheme.primary
       )
       Text(
-        text = "Your CowCow dashboard",
+        text = "Explore the collection. Connect only when you need your wallet.",
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
@@ -147,13 +146,13 @@ private fun HomeHeader(
       horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
       Button(
-        onClick = onStatsClick,
+        onClick = onCollectionClick,
         modifier = Modifier.weight(1f)
       ) {
         Text("Collection")
       }
       Button(
-        onClick = onProfileClick,
+        onClick = onPortfolioClick,
         modifier = Modifier.weight(1f)
       ) {
         Text("Portfolio")

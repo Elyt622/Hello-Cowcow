@@ -1,9 +1,5 @@
-package com.example.hellocowcow.app.module.nft
+package com.example.hellocowcow.ui.screen.nft
 
-import android.os.Bundle
-import androidx.activity.compose.LocalActivity
-import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +10,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -31,64 +26,42 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryTabRow
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
-import com.example.hellocowcow.app.module.BaseActivity
 import com.example.hellocowcow.data.retrofit.proxyXoxnoApi.Attributes
 import com.example.hellocowcow.data.retrofit.proxyXoxnoApi.OffersInfo
 import com.example.hellocowcow.domain.models.DomainNft
-import com.example.hellocowcow.ui.theme.HelloCowCowTheme
-import com.example.hellocowcow.ui.viewmodels.activity.NftViewModel
-import dagger.hilt.android.AndroidEntryPoint
+import com.example.hellocowcow.ui.viewmodels.screen.nft.NftViewModel
 import java.util.Locale
-
-@AndroidEntryPoint
-class NftActivity : BaseActivity() {
-
-  private val viewModel by viewModels<NftViewModel>()
-
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-
-    val identifier = intent.getStringExtra("IDENTIFIER").orEmpty()
-    viewModel.getNft(identifier)
-
-    setContent {
-      HelloCowCowTheme(dynamicColor = false) {
-        Surface(
-          modifier = Modifier.fillMaxSize(),
-          color = MaterialTheme.colorScheme.background
-        ) {
-          NftScreen(viewModel)
-        }
-      }
-    }
-  }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NftScreen(viewModel: NftViewModel) {
-  val activity = LocalActivity.current
+fun NftScreen(
+  identifier: String,
+  viewModel: NftViewModel,
+  onBack: () -> Unit
+) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+  LaunchedEffect(identifier) {
+    viewModel.load(identifier)
+  }
 
   Scaffold(
     topBar = {
@@ -98,12 +71,12 @@ private fun NftScreen(viewModel: NftViewModel) {
             text = (uiState as? NftViewModel.UiState.Success)
               ?.nft
               ?.identifier
-              .orEmpty(),
+              ?: identifier,
             style = MaterialTheme.typography.titleMedium
           )
         },
         navigationIcon = {
-          IconButton(onClick = { activity?.finish() }) {
+          IconButton(onClick = onBack) {
             Icon(
               imageVector = Icons.AutoMirrored.Filled.ArrowBack,
               contentDescription = "Back"
@@ -120,7 +93,7 @@ private fun NftScreen(viewModel: NftViewModel) {
       NftViewModel.UiState.Loading -> LoadingNft(padding)
       is NftViewModel.UiState.Error -> ErrorNft(
         padding = padding,
-        message = state.error
+        message = state.message
       )
       is NftViewModel.UiState.Success -> NftContent(
         padding = padding,
