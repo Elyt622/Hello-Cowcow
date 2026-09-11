@@ -2,18 +2,24 @@ package com.example.hellocowcow.ui.navigation
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,6 +42,8 @@ import com.example.hellocowcow.ui.screen.stats.StatsScreen
 import com.example.hellocowcow.ui.viewmodels.activity.MainViewModel
 import com.example.hellocowcow.ui.viewmodels.screen.nft.NftViewModel
 import com.example.hellocowcow.ui.viewmodels.screen.recovery.RecoveryViewModel
+
+private const val EXPANDED_NAVIGATION_BREAKPOINT_DP = 840
 
 private data class TopLevelItem(
   val destination: AppDestination,
@@ -77,32 +85,10 @@ fun AppShell(
     }
   }
 
-  Scaffold(
-    bottomBar = {
-      if (currentDestination in topLevelDestinations) {
-        NavigationBar {
-          topLevelItems.forEach { item ->
-            NavigationBarItem(
-              selected = currentDestination == item.destination,
-              onClick = { navigateTopLevel(item.destination) },
-              icon = {
-                androidx.compose.material3.Icon(
-                  imageVector = item.icon,
-                  contentDescription = item.label
-                )
-              },
-              label = { Text(item.label) }
-            )
-          }
-        }
-      }
-    }
-  ) { paddingValues ->
+  val navContent: @Composable (Modifier) -> Unit = { modifier ->
     NavDisplay(
       backStack = backStack,
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(paddingValues),
+      modifier = modifier,
       onBack = {
         if (backStack.size > 1) {
           backStack.removeLastOrNull()
@@ -153,6 +139,65 @@ fun AppShell(
         }
       }
     )
+  }
+
+  BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    val useNavigationRail = maxWidth >= EXPANDED_NAVIGATION_BREAKPOINT_DP.dp &&
+        currentDestination in topLevelDestinations
+
+    if (useNavigationRail) {
+      Row(modifier = Modifier.fillMaxSize()) {
+        NavigationRail {
+          topLevelItems.forEach { item ->
+            NavigationRailItem(
+              selected = currentDestination == item.destination,
+              onClick = { navigateTopLevel(item.destination) },
+              icon = {
+                Icon(
+                  imageVector = item.icon,
+                  contentDescription = item.label
+                )
+              },
+              label = { Text(item.label) }
+            )
+          }
+        }
+
+        navContent(
+          Modifier
+            .weight(1f)
+            .fillMaxSize()
+        )
+      }
+    } else {
+      Scaffold(
+        bottomBar = {
+          if (currentDestination in topLevelDestinations) {
+            NavigationBar {
+              topLevelItems.forEach { item ->
+                NavigationBarItem(
+                  selected = currentDestination == item.destination,
+                  onClick = { navigateTopLevel(item.destination) },
+                  icon = {
+                    Icon(
+                      imageVector = item.icon,
+                      contentDescription = item.label
+                    )
+                  },
+                  label = { Text(item.label) }
+                )
+              }
+            }
+          }
+        }
+      ) { paddingValues ->
+        navContent(
+          Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+        )
+      }
+    }
   }
 }
 
