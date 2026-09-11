@@ -19,6 +19,11 @@ class TransactionCostRepositoryImpl @Inject constructor(
 
   override suspend fun estimateFee(transaction: MvxTransaction): TransactionFeeEstimate {
     val config = getNetworkConfig()
+    val minGasPrice = requireNotNull(config.minGasPrice) { "Network min gas price is missing" }
+    check(transaction.gasPrice >= minGasPrice) {
+      "Configured gas price ${transaction.gasPrice} is below current MultiversX minimum $minGasPrice"
+    }
+
     val simulatedGas = runCatching {
       val response = api.estimateTransactionCost(
         TransactionCostRequest(
