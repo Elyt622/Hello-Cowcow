@@ -5,11 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.hellocowcow.core.wallet.MvxSignTransactionResultParser
 import com.example.hellocowcow.core.wallet.WalletClient
 import com.example.hellocowcow.core.wallet.WalletEvent
-import com.example.hellocowcow.data.rewards.MooveRewardDecoder
 import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.domain.models.DomainTransaction
 import com.example.hellocowcow.domain.models.MvxTransaction
-import com.example.hellocowcow.domain.repositories.RewardsRepository
+import com.example.hellocowcow.domain.repositories.RecoveryRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
 import com.example.hellocowcow.domain.transactions.ClaimTransactionFactory
 import com.example.hellocowcow.domain.transactions.TransactionTracker
@@ -23,7 +22,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-  private val rewardsRepository: RewardsRepository,
+  private val recoveryRepository: RecoveryRepository,
   private val transactionRepository: TransactionRepository,
   private val transactionTracker: TransactionTracker,
   private val walletClient: WalletClient
@@ -31,6 +30,7 @@ class ProfileViewModel @Inject constructor(
 
   private var pendingClaimTransaction: MvxTransaction? = null
   private var pendingClaimRequestId: Long? = null
+  private var currentAddress: String? = null
 
   private val gson: Gson = GsonBuilder().disableHtmlEscaping().create()
 
@@ -62,20 +62,21 @@ class ProfileViewModel @Inject constructor(
   }
 
   fun load(address: String) {
+    currentAddress = address
     _uiState.value = UiState.Loading
 
     viewModelScope.launch {
       runCatching {
-        rewardsRepository.getUserData(address)
-      }.mapCatching(MooveRewardDecoder::decodeClaimableAmount)
-        .onSuccess { amount ->
-          _uiState.value = UiState.Success(amount.toEngineeringString())
-        }
-        .onFailure { error ->
-          _uiState.value = UiState.Error(
-            error.message ?: "Unable to load MOOVE rewards"
-          )
-        }
+        recoveryRepository.getSnapshot(address).claimableRewards
+      }.onSuccess { amount ->
+        _uiState.value = UiState.Success(
+          amount.stripTrailingZeros().toPlainString()
+        )
+      }.onFailure { error ->
+        _uiState.value = UiState.Error(
+          error.message ?: "Unable to load MOOVE rewards"
+        )
+      }
     }
   }
 
@@ -193,6 +194,7 @@ class ProfileViewModel @Inject constructor(
     when (val result = transactionTracker.awaitFinalStatus(txHash)) {
       is TransactionTracker.Result.Confirmed -> {
         _uiStateTx.value = UiStateTx.Confirmed(tx)
+        currentAddress?.let(::load)
       }
 
       is TransactionTracker.Result.Failed -> {
