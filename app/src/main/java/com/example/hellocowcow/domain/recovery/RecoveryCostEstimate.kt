@@ -6,11 +6,16 @@ data class RecoveryCostEstimateInput(
   val buyCostEgld: BigDecimal,
   val expectedSellReturnEgld: BigDecimal,
   val minimumSellReturnEgld: BigDecimal,
-  val estimatedNetworkFeesEgld: BigDecimal
+  val estimatedNetworkFeesEgld: BigDecimal,
+  val maximumNetworkFeesEgld: BigDecimal = estimatedNetworkFeesEgld
 )
 
 data class RecoveryCostEstimate(
-  val expectedLossEgld: BigDecimal,
-  val worstCaseLossEgld: BigDecimal,
+  val expectedDexLossEgld: BigDecimal,
+  val worstCaseDexLossEgld: BigDecimal,
+  val estimatedNetworkFeesEgld: BigDecimal,
+  val maximumNetworkFeesEgld: BigDecimal,
+  val expectedTotalLossEgld: BigDecimal,
+  val worstCaseTotalLossEgld: BigDecimal,
   val expectedRecoveryRatio: BigDecimal
 )

@@ -43,6 +43,25 @@ class RecoveryTopUpTransactionFactoryTest {
   }
 
   @Test
+  fun `pads an odd-length atomic amount to a whole hex byte`() {
+    val tx = RecoveryTopUpTransactionFactory.create(
+      account = DomainAccount(address = "erd1sender"),
+      amountMoove = BigDecimal("0.000000000000000010")
+    )
+
+    val decodedData = String(
+      Base64.getDecoder().decode(tx.data),
+      StandardCharsets.UTF_8
+    )
+
+    // 10 atomic MOOVE units = byte 0x0a, matching SDK Buffer -> hex serialization.
+    assertEquals(
+      "ESDTTransfer@4d4f4f56452d383735353339@0a",
+      decodedData
+    )
+  }
+
+  @Test
   fun `adds guarded transaction metadata without changing transfer payload`() {
     val account = DomainAccount(
       address = "erd1sender",

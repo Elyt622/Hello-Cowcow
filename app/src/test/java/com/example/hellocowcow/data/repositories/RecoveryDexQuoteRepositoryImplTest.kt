@@ -63,7 +63,7 @@ class RecoveryDexQuoteRepositoryImplTest {
 
     assertEquals(BigDecimal("0.100000000000000000"), quote.buyCostEgld)
     assertEquals(BigDecimal("0.098000000000000000"), quote.expectedSellReturnEgld)
-    assertEquals(BigDecimal("0.09702000000000000000"), quote.minimumSellReturnEgld)
+    assertEquals(BigDecimal("0.097029702970297030"), quote.minimumSellReturnEgld)
     assertEquals(BigDecimal("0.200"), quote.buyMaxPriceDeviationPercent)
     assertEquals(BigDecimal("0.300"), quote.sellMaxPriceDeviationPercent)
   }

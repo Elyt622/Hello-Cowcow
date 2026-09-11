@@ -23,8 +23,6 @@ class App : Application() {
     }
 
     val projectId = resources.getString(R.string.wallet_connect_id)
-    val relayUrl = "relay.walletconnect.com"
-    val serverUrl = "wss://$relayUrl?projectId=$projectId"
     val connectionType = ConnectionType.AUTOMATIC
     val appMetaData = Core.Model.AppMetaData(
       name = "Hello CowCow",
@@ -35,14 +33,15 @@ class App : Application() {
     )
 
     CoreClient.initialize(
-      relayServerUrl = serverUrl,
-      connectionType = connectionType,
       application = this,
-      metaData = appMetaData
-    ) { error ->
-      Timber.tag("CoreClient_Init_Error")
-        .e(error.throwable.stackTraceToString())
-    }
+      projectId = projectId,
+      metaData = appMetaData,
+      connectionType = connectionType,
+      onError = { error ->
+        Timber.tag("CoreClient_Init_Error")
+          .e(error.throwable)
+      }
+    )
 
     SignClient.initialize(
       init = Sign.Params.Init(core = CoreClient),

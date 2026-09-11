@@ -33,6 +33,11 @@ interface MvxApi {
     @Path("identifier") identifier: String
   ): Single<Nft>
 
+  @GET("/nfts/{identifier}")
+  suspend fun getNftDetail(
+    @Path("identifier") identifier: String
+  ): Nft
+
   @GET("/accounts/{address}/nfts?collections=COW-cd463d")
   fun getAllCowsInWallet(
     @Path("address") address: String
@@ -49,6 +54,14 @@ interface MvxApi {
   suspend fun getAccount(
     @Path("address") address: String
   ): Account
+
+  @GET("/transactions")
+  suspend fun getTransactionsByFunction(
+    @Query("sender") sender: String,
+    @Query("receiver") receiver: String,
+    @Query("function") function: String,
+    @Query("size") size: Int = 100
+  ): List<Transactions>
 
   @GET("/accounts/erd1qqqqqqqqqqqqqpgqqgzzsl0re9e3u0t3mhv3jwg6zu63zssd7yqs3uu9jk/nfts/count?collection=COW-cd463d")
   fun getStakingCowsCount(): Single<Int>

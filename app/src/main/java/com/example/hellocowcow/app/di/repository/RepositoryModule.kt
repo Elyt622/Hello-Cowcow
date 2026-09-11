@@ -4,18 +4,22 @@ import com.example.hellocowcow.data.repositories.AccountRepositoryImpl
 import com.example.hellocowcow.data.repositories.NftDetailRepositoryImpl
 import com.example.hellocowcow.data.repositories.NftRepositoryImpl
 import com.example.hellocowcow.data.repositories.RecoveryDexQuoteRepositoryImpl
+import com.example.hellocowcow.data.repositories.RecoveryHistoryRepositoryImpl
 import com.example.hellocowcow.data.repositories.RecoveryRepositoryImpl
 import com.example.hellocowcow.data.repositories.RewardsRepositoryImpl
 import com.example.hellocowcow.data.repositories.TokenRepositoryImpl
+import com.example.hellocowcow.data.repositories.TransactionCostRepositoryImpl
 import com.example.hellocowcow.data.repositories.TransactionProcessStatusRepositoryImpl
 import com.example.hellocowcow.data.repositories.TransactionRepositoryImpl
 import com.example.hellocowcow.domain.repositories.AccountRepository
 import com.example.hellocowcow.domain.repositories.NftDetailRepository
 import com.example.hellocowcow.domain.repositories.NftRepository
 import com.example.hellocowcow.domain.repositories.RecoveryDexQuoteRepository
+import com.example.hellocowcow.domain.repositories.RecoveryHistoryRepository
 import com.example.hellocowcow.domain.repositories.RecoveryRepository
 import com.example.hellocowcow.domain.repositories.RewardsRepository
 import com.example.hellocowcow.domain.repositories.TokenRepository
+import com.example.hellocowcow.domain.repositories.TransactionCostRepository
 import com.example.hellocowcow.domain.repositories.TransactionProcessStatusRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
 import dagger.Binds
@@ -41,6 +45,11 @@ abstract class RepositoryModule {
   abstract fun bindTransactionProcessStatusRepository(
     transactionProcessStatusRepositoryImpl: TransactionProcessStatusRepositoryImpl
   ): TransactionProcessStatusRepository
+
+  @Binds
+  abstract fun bindTransactionCostRepository(
+    transactionCostRepositoryImpl: TransactionCostRepositoryImpl
+  ): TransactionCostRepository
 
   @Binds
   abstract fun bindNftRepository(
@@ -71,4 +80,9 @@ abstract class RepositoryModule {
   abstract fun bindRecoveryDexQuoteRepository(
     recoveryDexQuoteRepositoryImpl: RecoveryDexQuoteRepositoryImpl
   ): RecoveryDexQuoteRepository
+
+  @Binds
+  abstract fun bindRecoveryHistoryRepository(
+    recoveryHistoryRepositoryImpl: RecoveryHistoryRepositoryImpl
+  ): RecoveryHistoryRepository
 }
