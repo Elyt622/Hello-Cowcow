@@ -136,7 +136,7 @@ private fun RecoveryHeader() {
       color = MaterialTheme.colorScheme.onBackground
     )
     Text(
-      text = "Recover MOOVE first, then move the CowCows through the verified 7-day exit path.",
+      text = "Recover MOOVE first, then follow CowCow exit state reconstructed from verified mainnet history.",
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -347,17 +347,25 @@ private fun ClaimFirstActions(
         )
       }
 
-      RecoveryStep(
-        number = 4,
-        title = "Sell temporary MOOVE",
-        detail = "After the claim confirms, swap back the temporary MOOVE you bought. Your actual accrued rewards remain recovered value, not a recovery cost."
-      )
-      OutlinedButton(
-        onClick = { uriHandler.openUri(XEXCHANGE_TRADE_URL) },
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        Icon(Icons.Filled.OpenInNew, contentDescription = null)
-        Text("Open xExchange", modifier = Modifier.padding(start = 8.dp))
+      if (snapshot.amountToAcquire > BigDecimal.ZERO) {
+        RecoveryStep(
+          number = 4,
+          title = "Sell temporary MOOVE",
+          detail = "After the claim confirms, swap back the temporary MOOVE bought for this recovery. Your accrued rewards remain recovered value, not a recovery cost."
+        )
+        OutlinedButton(
+          onClick = { uriHandler.openUri(XEXCHANGE_TRADE_URL) },
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Icon(Icons.Filled.OpenInNew, contentDescription = null)
+          Text("Open xExchange", modifier = Modifier.padding(start = 8.dp))
+        }
+      } else {
+        RecoveryStep(
+          number = 4,
+          title = "No temporary swap to unwind",
+          detail = "No external MOOVE purchase is required by the current recovery snapshot, so there is no temporary xExchange position to reverse here."
+        )
       }
     }
   }
@@ -450,9 +458,9 @@ private fun UnbondBatchCard(
       }
       Text(
         if (ready) {
-          "7-day unbonding period completed · final claim is eligible by historical timing."
+          "Observed-safe delay reached. A successful final claim for the same CowCow nonces was observed after this delay; the contract's exact minimum is not yet proven."
         } else {
-          "Claimable ${formatReadyAt(batch.claimableAtEpochSeconds)} · ${formatRemaining(batch.claimableAtEpochSeconds - nowEpochSeconds)} remaining."
+          "Conservative historical threshold ${formatReadyAt(batch.claimableAtEpochSeconds)} · ${formatRemaining(batch.claimableAtEpochSeconds - nowEpochSeconds)} remaining."
         },
         style = MaterialTheme.typography.bodySmall
       )
