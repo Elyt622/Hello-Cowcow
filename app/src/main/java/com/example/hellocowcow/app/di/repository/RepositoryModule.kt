@@ -3,12 +3,14 @@ package com.example.hellocowcow.app.di.repository
 import com.example.hellocowcow.data.repositories.AccountRepositoryImpl
 import com.example.hellocowcow.data.repositories.NftDetailRepositoryImpl
 import com.example.hellocowcow.data.repositories.NftRepositoryImpl
+import com.example.hellocowcow.data.repositories.RecoveryRepositoryImpl
 import com.example.hellocowcow.data.repositories.RewardsRepositoryImpl
 import com.example.hellocowcow.data.repositories.TokenRepositoryImpl
 import com.example.hellocowcow.data.repositories.TransactionRepositoryImpl
 import com.example.hellocowcow.domain.repositories.AccountRepository
 import com.example.hellocowcow.domain.repositories.NftDetailRepository
 import com.example.hellocowcow.domain.repositories.NftRepository
+import com.example.hellocowcow.domain.repositories.RecoveryRepository
 import com.example.hellocowcow.domain.repositories.RewardsRepository
 import com.example.hellocowcow.domain.repositories.TokenRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
@@ -50,4 +52,9 @@ abstract class RepositoryModule {
   abstract fun bindRewardsRepository(
     rewardsRepositoryImpl: RewardsRepositoryImpl
   ): RewardsRepository
+
+  @Binds
+  abstract fun bindRecoveryRepository(
+    recoveryRepositoryImpl: RecoveryRepositoryImpl
+  ): RecoveryRepository
 }
