@@ -110,6 +110,6 @@ class NftRepositoryImpl @Inject constructor(
     // The old encoded /getTradingActivity proxy endpoint was removed by XOXNO.
     // Returning an empty public state avoids a startup 404 while the model is
     // migrated to the current /activity/query response shape.
-    Observable.just(arrayListOf())
+    Observable.just<ArrayList<Resources>>(arrayListOf())
       .observeOn(mySchedulers.main)
 }
