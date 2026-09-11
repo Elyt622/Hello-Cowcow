@@ -3,6 +3,7 @@ package com.example.hellocowcow.app.di.network
 import com.example.hellocowcow.data.network.api.MvxApi
 import com.example.hellocowcow.data.network.api.MvxGatewayApi
 import com.example.hellocowcow.data.network.api.ProxyXoxnoApi
+import com.example.hellocowcow.data.network.api.XExchangeQuoteApi
 import com.example.hellocowcow.data.network.api.XoxnoApi
 import com.google.gson.GsonBuilder
 import dagger.Module
@@ -45,6 +46,15 @@ object NetworkModule {
       .client(httpClient)
       .addConverterFactory(GsonConverterFactory.create(GsonBuilder().create()))
       .build().create(MvxGatewayApi::class.java)
+
+  @Provides
+  @Singleton
+  fun provideXExchangeQuoteApi(): XExchangeQuoteApi =
+    Retrofit.Builder()
+      .baseUrl("https://graph.xexchange.com/")
+      .client(httpClient)
+      .addConverterFactory(GsonConverterFactory.create(GsonBuilder().create()))
+      .build().create(XExchangeQuoteApi::class.java)
 
   @Provides
   @Singleton

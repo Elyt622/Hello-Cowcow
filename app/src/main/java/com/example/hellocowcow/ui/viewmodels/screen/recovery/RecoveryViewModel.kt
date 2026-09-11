@@ -9,6 +9,11 @@ import com.example.hellocowcow.domain.models.DomainAccount
 import com.example.hellocowcow.domain.models.DomainTransaction
 import com.example.hellocowcow.domain.models.MvxTransaction
 import com.example.hellocowcow.domain.models.RecoverySnapshot
+import com.example.hellocowcow.domain.recovery.RecoveryCostCalculator
+import com.example.hellocowcow.domain.recovery.RecoveryCostEstimate
+import com.example.hellocowcow.domain.recovery.RecoveryCostEstimateInput
+import com.example.hellocowcow.domain.recovery.RecoveryDexQuote
+import com.example.hellocowcow.domain.repositories.RecoveryDexQuoteRepository
 import com.example.hellocowcow.domain.repositories.RecoveryRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
 import com.example.hellocowcow.domain.transactions.RecoveryTopUpTransactionFactory
@@ -25,6 +30,7 @@ import javax.inject.Inject
 @HiltViewModel
 class RecoveryViewModel @Inject constructor(
   private val recoveryRepository: RecoveryRepository,
+  private val recoveryDexQuoteRepository: RecoveryDexQuoteRepository,
   private val transactionRepository: TransactionRepository,
   private val transactionTracker: TransactionTracker,
   private val walletClient: WalletClient
@@ -34,6 +40,16 @@ class RecoveryViewModel @Inject constructor(
     data object Loading : UiState
     data class Success(val snapshot: RecoverySnapshot) : UiState
     data class Error(val message: String) : UiState
+  }
+
+  sealed interface CostUiState {
+    data object NotNeeded : CostUiState
+    data object Loading : CostUiState
+    data class Success(
+      val quote: RecoveryDexQuote,
+      val dexEstimate: RecoveryCostEstimate
+    ) : CostUiState
+    data class Unavailable(val message: String) : CostUiState
   }
 
   sealed interface TransactionUiState {
@@ -55,6 +71,9 @@ class RecoveryViewModel @Inject constructor(
   private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
   val uiState: StateFlow<UiState> = _uiState
 
+  private val _costState = MutableStateFlow<CostUiState>(CostUiState.NotNeeded)
+  val costState: StateFlow<CostUiState> = _costState
+
   private val _transactionState = MutableStateFlow<TransactionUiState>(TransactionUiState.Idle)
   val transactionState: StateFlow<TransactionUiState> = _transactionState
 
@@ -74,12 +93,46 @@ class RecoveryViewModel @Inject constructor(
       runCatching { recoveryRepository.getSnapshot(address) }
         .onSuccess { snapshot ->
           _uiState.value = UiState.Success(snapshot)
+          loadCostEstimate(snapshot.amountToAcquire)
         }
         .onFailure { error ->
           _uiState.value = UiState.Error(
             error.message ?: "Unable to load the CowCow recovery diagnostic"
           )
+          _costState.value = CostUiState.Unavailable("Recovery diagnostic is unavailable")
         }
+    }
+  }
+
+  private fun loadCostEstimate(amountToAcquire: BigDecimal) {
+    if (amountToAcquire <= BigDecimal.ZERO) {
+      _costState.value = CostUiState.NotNeeded
+      return
+    }
+
+    _costState.value = CostUiState.Loading
+    viewModelScope.launch {
+      runCatching {
+        val quote = recoveryDexQuoteRepository.getRoundTripQuote(
+          mooveAmount = amountToAcquire,
+          tolerancePercentage = DEFAULT_TOLERANCE_PERCENTAGE
+        )
+        val estimate = RecoveryCostCalculator.calculate(
+          RecoveryCostEstimateInput(
+            buyCostEgld = quote.buyCostEgld,
+            expectedSellReturnEgld = quote.expectedSellReturnEgld,
+            minimumSellReturnEgld = quote.minimumSellReturnEgld,
+            estimatedNetworkFeesEgld = BigDecimal.ZERO
+          )
+        )
+        quote to estimate
+      }.onSuccess { (quote, estimate) ->
+        _costState.value = CostUiState.Success(quote, estimate)
+      }.onFailure { error ->
+        _costState.value = CostUiState.Unavailable(
+          error.message ?: "Live xExchange quote unavailable"
+        )
+      }
     }
   }
 
@@ -236,5 +289,9 @@ class RecoveryViewModel @Inject constructor(
   private fun clearPending() {
     pendingTopUpTransaction = null
     pendingTopUpRequestId = null
+  }
+
+  private companion object {
+    val DEFAULT_TOLERANCE_PERCENTAGE: BigDecimal = BigDecimal.ONE
   }
 }

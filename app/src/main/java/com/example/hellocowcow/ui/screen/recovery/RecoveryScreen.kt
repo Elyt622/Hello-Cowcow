@@ -52,6 +52,7 @@ fun RecoveryScreen(
   viewModel: RecoveryViewModel
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val costState by viewModel.costState.collectAsStateWithLifecycle()
   val transactionState by viewModel.transactionState.collectAsStateWithLifecycle()
   var showTopUpConfirmation by remember { mutableStateOf(false) }
 
@@ -89,6 +90,7 @@ fun RecoveryScreen(
       is RecoveryViewModel.UiState.Error -> RecoveryError(state.message)
       is RecoveryViewModel.UiState.Success -> RecoveryDiagnostic(
         snapshot = state.snapshot,
+        costState = costState,
         transactionState = transactionState,
         onFundContract = { showTopUpConfirmation = true },
         onDismissError = viewModel::clearTransactionError
@@ -158,6 +160,7 @@ private fun RecoveryError(message: String) {
 @Composable
 private fun RecoveryDiagnostic(
   snapshot: RecoverySnapshot,
+  costState: RecoveryViewModel.CostUiState,
   transactionState: RecoveryViewModel.TransactionUiState,
   onFundContract: () -> Unit,
   onDismissError: () -> Unit
@@ -182,7 +185,10 @@ private fun RecoveryDiagnostic(
   }
 
   if (snapshot.amountToAcquire > BigDecimal.ZERO) {
-    AcquireMooveCard(snapshot.amountToAcquire)
+    AcquireMooveCard(
+      amountToAcquire = snapshot.amountToAcquire,
+      costState = costState
+    )
   }
 
   TopUpActionCard(
@@ -199,7 +205,10 @@ private fun RecoveryDiagnostic(
 }
 
 @Composable
-private fun AcquireMooveCard(amountToAcquire: BigDecimal) {
+private fun AcquireMooveCard(
+  amountToAcquire: BigDecimal,
+  costState: RecoveryViewModel.CostUiState
+) {
   val uriHandler = LocalUriHandler.current
 
   Surface(
@@ -224,6 +233,71 @@ private fun AcquireMooveCard(amountToAcquire: BigDecimal) {
         )
       }
 
+      when (val state = costState) {
+        RecoveryViewModel.CostUiState.Loading -> {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            CircularProgressIndicator()
+            Text(
+              "Getting a live xExchange round-trip quote…",
+              style = MaterialTheme.typography.bodySmall
+            )
+          }
+        }
+
+        is RecoveryViewModel.CostUiState.Success -> {
+          Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.52f)
+          ) {
+            Column(
+              modifier = Modifier.padding(12.dp),
+              verticalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+              Text(
+                "Live xExchange estimate",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+              )
+              RecoveryQuoteRow("Buy cost", "${formatEgld(state.quote.buyCostEgld)} EGLD")
+              RecoveryQuoteRow(
+                "Expected MOOVE → EGLD return",
+                "${formatEgld(state.quote.expectedSellReturnEgld)} EGLD"
+              )
+              RecoveryQuoteRow(
+                "Expected round-trip loss",
+                "${formatEgld(state.dexEstimate.expectedLossEgld)} EGLD"
+              )
+              RecoveryQuoteRow(
+                "Worst case at min received",
+                "${formatEgld(state.dexEstimate.worstCaseLossEgld)} EGLD"
+              )
+              RecoveryQuoteRow(
+                "Expected value recovered",
+                formatPercent(state.dexEstimate.expectedRecoveryRatio)
+              )
+              Text(
+                "xExchange tolerance: ${formatPercentValue(state.quote.tolerancePercentage)}. CowCow unstake/unbond network fees are not included yet.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
+          }
+        }
+
+        is RecoveryViewModel.CostUiState.Unavailable -> {
+          Text(
+            "Live xExchange estimate unavailable: ${state.message}",
+            style = MaterialTheme.typography.bodySmall
+          )
+        }
+
+        RecoveryViewModel.CostUiState.NotNeeded -> Unit
+      }
+
       OutlinedButton(
         onClick = { uriHandler.openUri(XEXCHANGE_TRADE_URL) },
         modifier = Modifier.fillMaxWidth()
@@ -238,6 +312,27 @@ private fun AcquireMooveCard(amountToAcquire: BigDecimal) {
         )
       }
     }
+  }
+}
+
+@Composable
+private fun RecoveryQuoteRow(label: String, value: String) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Text(
+      text = label,
+      modifier = Modifier.weight(1f),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Text(
+      text = value,
+      style = MaterialTheme.typography.labelLarge,
+      fontWeight = FontWeight.SemiBold
+    )
   }
 }
 
@@ -568,3 +663,19 @@ private fun formatMoove(value: BigDecimal): String = value
   .setScale(4, RoundingMode.HALF_UP)
   .stripTrailingZeros()
   .toPlainString()
+
+private fun formatEgld(value: BigDecimal): String = value
+  .setScale(6, RoundingMode.HALF_UP)
+  .stripTrailingZeros()
+  .toPlainString()
+
+private fun formatPercent(ratio: BigDecimal): String = ratio
+  .multiply(BigDecimal("100"))
+  .setScale(1, RoundingMode.HALF_UP)
+  .stripTrailingZeros()
+  .toPlainString() + "%"
+
+private fun formatPercentValue(value: BigDecimal): String = value
+  .setScale(2, RoundingMode.HALF_UP)
+  .stripTrailingZeros()
+  .toPlainString() + "%"
