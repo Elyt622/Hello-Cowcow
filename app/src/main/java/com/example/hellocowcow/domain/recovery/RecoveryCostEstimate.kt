@@ -10,7 +10,10 @@ data class RecoveryCostEstimateInput(
 )
 
 data class RecoveryCostEstimate(
-  val expectedLossEgld: BigDecimal,
-  val worstCaseLossEgld: BigDecimal,
+  val expectedDexLossEgld: BigDecimal,
+  val worstCaseDexLossEgld: BigDecimal,
+  val estimatedNetworkFeesEgld: BigDecimal,
+  val expectedTotalLossEgld: BigDecimal,
+  val worstCaseTotalLossEgld: BigDecimal,
   val expectedRecoveryRatio: BigDecimal
 )
