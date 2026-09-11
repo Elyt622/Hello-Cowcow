@@ -11,6 +11,7 @@ on:
       - hello-cowcow-2026-shell
       - hello-cowcow-2026-recovery
       - hello-cowcow-2026-polish
+      - hello-cowcow-2026-tx-tracking
 
 permissions:
   contents: read
