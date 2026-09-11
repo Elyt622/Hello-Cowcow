@@ -93,7 +93,8 @@ fun ProfileScreen(
 
     PortfolioTabs(
       account = account,
-      onNftClick = onNftClick
+      onNftClick = onNftClick,
+      modifier = Modifier.weight(1f)
     )
   }
 }
@@ -274,13 +275,14 @@ private fun InlineError(message: String) {
 @Composable
 private fun PortfolioTabs(
   account: DomainAccount,
-  onNftClick: (String) -> Unit
+  onNftClick: (String) -> Unit,
+  modifier: Modifier = Modifier
 ) {
   var tabIndex by remember { mutableIntStateOf(0) }
   val tabs = listOf("Owned", "Staked", "Listed")
 
   Column(
-    modifier = Modifier.fillMaxSize()
+    modifier = modifier.fillMaxWidth()
   ) {
     SecondaryTabRow(
       selectedTabIndex = tabIndex,
