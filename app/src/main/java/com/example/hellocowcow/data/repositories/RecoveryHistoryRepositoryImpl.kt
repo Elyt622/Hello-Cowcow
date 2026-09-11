@@ -18,13 +18,15 @@ class RecoveryHistoryRepositoryImpl @Inject constructor(
     val unstakeTransactions = mvxApi.getTransactionsByFunction(
       sender = address,
       receiver = CowCowConfig.REWARDS_CONTRACT,
-      function = CowCowConfig.UNSTAKE_FUNCTION
+      function = CowCowConfig.UNSTAKE_FUNCTION,
+      size = HISTORY_PAGE_SIZE
     ).filter(::isSuccessfulCowCowCall)
 
     val finalClaimTransactions = mvxApi.getTransactionsByFunction(
       sender = address,
       receiver = CowCowConfig.REWARDS_CONTRACT,
-      function = CowCowConfig.FINAL_CLAIM_FUNCTION
+      function = CowCowConfig.FINAL_CLAIM_FUNCTION,
+      size = HISTORY_PAGE_SIZE
     ).filter(::isSuccessfulCowCowCall)
 
     return RecoveryHistoryMatcher.pendingBatches(
@@ -36,5 +38,12 @@ class RecoveryHistoryRepositoryImpl @Inject constructor(
   private fun isSuccessfulCowCowCall(transaction: Transactions): Boolean {
     return transaction.receiver == CowCowConfig.REWARDS_CONTRACT &&
         transaction.status.equals("success", ignoreCase = true)
+  }
+
+  private companion object {
+    // MultiversX API list endpoints allow large page sizes up to the endpoint
+    // complexity ceiling. One thousand is enough to avoid silently truncating a
+    // normal wallet's CowCow history while keeping this to one request per method.
+    const val HISTORY_PAGE_SIZE = 1000
   }
 }
