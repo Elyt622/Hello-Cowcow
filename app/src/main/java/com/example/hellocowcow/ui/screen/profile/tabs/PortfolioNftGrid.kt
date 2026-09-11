@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
@@ -82,74 +83,19 @@ internal fun PortfolioNftGrid(
     }
   }
 
-  Column(modifier = Modifier.fillMaxSize()) {
-    Column(
-      modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-      verticalArrangement = Arrangement.spacedBy(9.dp)
-    ) {
-      Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium
+  if (visibleNfts.isEmpty()) {
+    Column(modifier = Modifier.fillMaxSize()) {
+      PortfolioControls(
+        title = title,
+        query = query,
+        onQueryChange = { query = it },
+        filter = filter,
+        onFilterChange = { filter = it },
+        sortByRank = sortByRank,
+        onSortByRankChange = { sortByRank = it },
+        visibleCount = 0,
+        normalizedQuery = normalizedQuery
       )
-
-      OutlinedTextField(
-        value = query,
-        onValueChange = { query = it },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        label = { Text("Find by name or identifier") },
-        leadingIcon = {
-          Icon(
-            imageVector = Icons.Filled.Search,
-            contentDescription = null
-          )
-        },
-        trailingIcon = {
-          if (query.isNotEmpty()) {
-            IconButton(onClick = { query = "" }) {
-              Icon(
-                imageVector = Icons.Filled.Clear,
-                contentDescription = "Clear search"
-              )
-            }
-          }
-        }
-      )
-
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        PortfolioFilter.entries.forEach { option ->
-          FilterChip(
-            selected = filter == option,
-            onClick = { filter = option },
-            label = { Text(option.label) }
-          )
-        }
-
-        FilterChip(
-          selected = sortByRank,
-          onClick = { sortByRank = !sortByRank },
-          label = { Text("Best rank") }
-        )
-      }
-
-      Text(
-        text = when {
-          normalizedQuery.isNotBlank() -> "${visibleNfts.size} result${if (visibleNfts.size == 1) "" else "s"}"
-          filter != PortfolioFilter.All -> "${visibleNfts.size} ${filter.label.lowercase()}"
-          else -> "${visibleNfts.size} visible"
-        },
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-      )
-    }
-
-    if (visibleNfts.isEmpty()) {
       EmptyPortfolioState(
         when {
           normalizedQuery.isNotBlank() -> "No CowCow matches \"$query\""
@@ -158,21 +104,119 @@ internal fun PortfolioNftGrid(
           else -> "No CowCow available"
         }
       )
-      return@Column
+    }
+    return
+  }
+
+  LazyVerticalGrid(
+    modifier = Modifier.fillMaxSize(),
+    columns = GridCells.Adaptive(150.dp),
+    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    item(span = { GridItemSpan(maxLineSpan) }) {
+      PortfolioControls(
+        title = title,
+        query = query,
+        onQueryChange = { query = it },
+        filter = filter,
+        onFilterChange = { filter = it },
+        sortByRank = sortByRank,
+        onSortByRankChange = { sortByRank = it },
+        visibleCount = visibleNfts.size,
+        normalizedQuery = normalizedQuery
+      )
     }
 
-    LazyVerticalGrid(
-      modifier = Modifier.fillMaxSize(),
-      columns = GridCells.Adaptive(150.dp),
-      contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp),
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp)
+    items(visibleNfts, key = { it.identifier.orEmpty() }) { nft ->
+      NftCard(nft = nft) {
+        nft.identifier?.let(onNftClick)
+      }
+    }
+  }
+}
+
+@Composable
+private fun PortfolioControls(
+  title: String,
+  query: String,
+  onQueryChange: (String) -> Unit,
+  filter: PortfolioFilter,
+  onFilterChange: (PortfolioFilter) -> Unit,
+  sortByRank: Boolean,
+  onSortByRankChange: (Boolean) -> Unit,
+  visibleCount: Int,
+  normalizedQuery: String
+) {
+  Column(
+    modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+    verticalArrangement = Arrangement.spacedBy(8.dp)
+  ) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
     ) {
-      items(visibleNfts, key = { it.identifier.orEmpty() }) { nft ->
-        NftCard(nft = nft) {
-          nft.identifier?.let(onNftClick)
+      Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium
+      )
+      Text(
+        text = when {
+          normalizedQuery.isNotBlank() -> "$visibleCount result${if (visibleCount == 1) "" else "s"}"
+          filter != PortfolioFilter.All -> "$visibleCount ${filter.label.lowercase()}"
+          else -> "$visibleCount visible"
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+      )
+    }
+
+    OutlinedTextField(
+      value = query,
+      onValueChange = onQueryChange,
+      modifier = Modifier.fillMaxWidth(),
+      singleLine = true,
+      label = { Text("Find by name or identifier") },
+      leadingIcon = {
+        Icon(
+          imageVector = Icons.Filled.Search,
+          contentDescription = null
+        )
+      },
+      trailingIcon = {
+        if (query.isNotEmpty()) {
+          IconButton(onClick = { onQueryChange("") }) {
+            Icon(
+              imageVector = Icons.Filled.Clear,
+              contentDescription = "Clear search"
+            )
+          }
         }
       }
+    )
+
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .horizontalScroll(rememberScrollState()),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      PortfolioFilter.entries.forEach { option ->
+        FilterChip(
+          selected = filter == option,
+          onClick = { onFilterChange(option) },
+          label = { Text(option.label) }
+        )
+      }
+
+      FilterChip(
+        selected = sortByRank,
+        onClick = { onSortByRankChange(!sortByRank) },
+        label = { Text("Best rank") }
+      )
     }
   }
 }
