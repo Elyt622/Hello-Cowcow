@@ -14,15 +14,16 @@ object RecoveryCostCalculator {
       "Minimum sell return cannot exceed expected sell return"
     }
 
-    val expectedLoss = input.buyCostEgld
+    val expectedDexLoss = input.buyCostEgld
       .subtract(input.expectedSellReturnEgld)
-      .add(input.estimatedNetworkFeesEgld)
       .max(BigDecimal.ZERO)
 
-    val worstCaseLoss = input.buyCostEgld
+    val worstCaseDexLoss = input.buyCostEgld
       .subtract(input.minimumSellReturnEgld)
-      .add(input.estimatedNetworkFeesEgld)
       .max(BigDecimal.ZERO)
+
+    val expectedTotalLoss = expectedDexLoss.add(input.estimatedNetworkFeesEgld)
+    val worstCaseTotalLoss = worstCaseDexLoss.add(input.estimatedNetworkFeesEgld)
 
     val expectedRecoveryRatio = if (input.buyCostEgld.signum() == 0) {
       BigDecimal.ONE
@@ -31,8 +32,11 @@ object RecoveryCostCalculator {
     }
 
     return RecoveryCostEstimate(
-      expectedLossEgld = expectedLoss,
-      worstCaseLossEgld = worstCaseLoss,
+      expectedDexLossEgld = expectedDexLoss,
+      worstCaseDexLossEgld = worstCaseDexLoss,
+      estimatedNetworkFeesEgld = input.estimatedNetworkFeesEgld,
+      expectedTotalLossEgld = expectedTotalLoss,
+      worstCaseTotalLossEgld = worstCaseTotalLoss,
       expectedRecoveryRatio = expectedRecoveryRatio
     )
   }
