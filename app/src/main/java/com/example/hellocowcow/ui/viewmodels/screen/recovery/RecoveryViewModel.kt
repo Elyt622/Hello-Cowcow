@@ -13,9 +13,12 @@ import com.example.hellocowcow.domain.recovery.RecoveryCostCalculator
 import com.example.hellocowcow.domain.recovery.RecoveryCostEstimate
 import com.example.hellocowcow.domain.recovery.RecoveryCostEstimateInput
 import com.example.hellocowcow.domain.recovery.RecoveryDexQuote
+import com.example.hellocowcow.domain.recovery.RecoveryNetworkFeeEstimate
 import com.example.hellocowcow.domain.repositories.RecoveryDexQuoteRepository
 import com.example.hellocowcow.domain.repositories.RecoveryRepository
+import com.example.hellocowcow.domain.repositories.TransactionCostRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
+import com.example.hellocowcow.domain.transactions.ClaimTransactionFactory
 import com.example.hellocowcow.domain.transactions.RecoveryTopUpTransactionFactory
 import com.example.hellocowcow.domain.transactions.TransactionTracker
 import com.google.gson.Gson
@@ -31,6 +34,7 @@ import javax.inject.Inject
 class RecoveryViewModel @Inject constructor(
   private val recoveryRepository: RecoveryRepository,
   private val recoveryDexQuoteRepository: RecoveryDexQuoteRepository,
+  private val transactionCostRepository: TransactionCostRepository,
   private val transactionRepository: TransactionRepository,
   private val transactionTracker: TransactionTracker,
   private val walletClient: WalletClient
@@ -43,11 +47,11 @@ class RecoveryViewModel @Inject constructor(
   }
 
   sealed interface CostUiState {
-    data object NotNeeded : CostUiState
     data object Loading : CostUiState
     data class Success(
-      val quote: RecoveryDexQuote,
-      val dexEstimate: RecoveryCostEstimate
+      val quote: RecoveryDexQuote?,
+      val estimate: RecoveryCostEstimate,
+      val networkFees: RecoveryNetworkFeeEstimate?
     ) : CostUiState
     data class Unavailable(val message: String) : CostUiState
   }
@@ -66,12 +70,12 @@ class RecoveryViewModel @Inject constructor(
   private val gson: Gson = GsonBuilder().disableHtmlEscaping().create()
   private var pendingTopUpTransaction: MvxTransaction? = null
   private var pendingTopUpRequestId: Long? = null
-  private var currentAddress: String? = null
+  private var currentAccount: DomainAccount? = null
 
   private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
   val uiState: StateFlow<UiState> = _uiState
 
-  private val _costState = MutableStateFlow<CostUiState>(CostUiState.NotNeeded)
+  private val _costState = MutableStateFlow<CostUiState>(CostUiState.Loading)
   val costState: StateFlow<CostUiState> = _costState
 
   private val _transactionState = MutableStateFlow<TransactionUiState>(TransactionUiState.Idle)
@@ -81,19 +85,20 @@ class RecoveryViewModel @Inject constructor(
     observeWalletEvents()
   }
 
-  fun load(address: String) {
-    if (address.isBlank()) {
+  fun load(account: DomainAccount) {
+    if (account.address.isBlank()) {
       _uiState.value = UiState.Error("Connect xPortal to run the recovery diagnostic")
       return
     }
 
-    currentAddress = address
+    currentAccount = account
     _uiState.value = UiState.Loading
+    _costState.value = CostUiState.Loading
     viewModelScope.launch {
-      runCatching { recoveryRepository.getSnapshot(address) }
+      runCatching { recoveryRepository.getSnapshot(account.address) }
         .onSuccess { snapshot ->
           _uiState.value = UiState.Success(snapshot)
-          loadCostEstimate(snapshot.amountToAcquire)
+          loadCostEstimate(snapshot, account)
         }
         .onFailure { error ->
           _uiState.value = UiState.Error(
@@ -104,36 +109,77 @@ class RecoveryViewModel @Inject constructor(
     }
   }
 
-  private fun loadCostEstimate(amountToAcquire: BigDecimal) {
-    if (amountToAcquire <= BigDecimal.ZERO) {
-      _costState.value = CostUiState.NotNeeded
-      return
-    }
-
+  private fun loadCostEstimate(
+    snapshot: RecoverySnapshot,
+    account: DomainAccount
+  ) {
     _costState.value = CostUiState.Loading
     viewModelScope.launch {
-      runCatching {
-        val quote = recoveryDexQuoteRepository.getRoundTripQuote(
-          mooveAmount = amountToAcquire,
-          tolerancePercentage = DEFAULT_TOLERANCE_PERCENTAGE
-        )
-        val estimate = RecoveryCostCalculator.calculate(
-          RecoveryCostEstimateInput(
-            buyCostEgld = quote.buyCostEgld,
-            expectedSellReturnEgld = quote.expectedSellReturnEgld,
-            minimumSellReturnEgld = quote.minimumSellReturnEgld,
-            estimatedNetworkFeesEgld = BigDecimal.ZERO
+      val networkFees = runCatching {
+        estimateNetworkFees(snapshot, account)
+      }.getOrNull()
+
+      val quoteResult = if (snapshot.amountToAcquire > BigDecimal.ZERO) {
+        runCatching {
+          recoveryDexQuoteRepository.getRoundTripQuote(
+            mooveAmount = snapshot.amountToAcquire,
+            tolerancePercentage = DEFAULT_TOLERANCE_PERCENTAGE
           )
-        )
-        quote to estimate
-      }.onSuccess { (quote, estimate) ->
-        _costState.value = CostUiState.Success(quote, estimate)
-      }.onFailure { error ->
-        _costState.value = CostUiState.Unavailable(
-          error.message ?: "Live xExchange quote unavailable"
-        )
+        }
+      } else {
+        Result.success(null)
       }
+
+      quoteResult
+        .onSuccess { quote ->
+          val estimate = RecoveryCostCalculator.calculate(
+            RecoveryCostEstimateInput(
+              buyCostEgld = quote?.buyCostEgld ?: BigDecimal.ZERO,
+              expectedSellReturnEgld = quote?.expectedSellReturnEgld ?: BigDecimal.ZERO,
+              minimumSellReturnEgld = quote?.minimumSellReturnEgld ?: BigDecimal.ZERO,
+              estimatedNetworkFeesEgld = networkFees?.totalFeeEgld ?: BigDecimal.ZERO
+            )
+          )
+          _costState.value = CostUiState.Success(
+            quote = quote,
+            estimate = estimate,
+            networkFees = networkFees
+          )
+        }
+        .onFailure { error ->
+          _costState.value = CostUiState.Unavailable(
+            error.message ?: "Live xExchange quote unavailable"
+          )
+        }
     }
+  }
+
+  private suspend fun estimateNetworkFees(
+    snapshot: RecoverySnapshot,
+    account: DomainAccount
+  ): RecoveryNetworkFeeEstimate {
+    val topUp = if (snapshot.recommendedTopUp > BigDecimal.ZERO) {
+      transactionCostRepository.estimateFee(
+        RecoveryTopUpTransactionFactory.create(account, snapshot.recommendedTopUp)
+      )
+    } else {
+      null
+    }
+
+    // Cost estimation is read-only. Use the account's current valid nonce for the
+    // standalone claim estimate; the nonce does not change the claim's gas path.
+    val claim = transactionCostRepository.estimateFee(
+      ClaimTransactionFactory.create(account)
+    )
+
+    val totalFee = (topUp?.feeEgld ?: BigDecimal.ZERO).add(claim.feeEgld)
+
+    return RecoveryNetworkFeeEstimate(
+      topUp = topUp,
+      claim = claim,
+      totalFeeEgld = totalFee,
+      fullySimulated = (topUp?.simulated ?: true) && claim.simulated
+    )
   }
 
   fun requestTopUp(
@@ -146,6 +192,11 @@ class RecoveryViewModel @Inject constructor(
     val snapshot = (uiState.value as? UiState.Success)?.snapshot
     if (snapshot == null) {
       _transactionState.value = TransactionUiState.Error("Recovery diagnostic is not ready")
+      return
+    }
+
+    if (amountMoove <= BigDecimal.ZERO) {
+      _transactionState.value = TransactionUiState.Error("No MOOVE top-up is needed before claiming")
       return
     }
 
@@ -265,7 +316,9 @@ class RecoveryViewModel @Inject constructor(
     when (val result = transactionTracker.awaitFinalStatus(txHash)) {
       is TransactionTracker.Result.Confirmed -> {
         _transactionState.value = TransactionUiState.Confirmed(transaction)
-        currentAddress?.let(::load)
+        currentAccount?.let { account ->
+          load(account.copy(nonce = account.nonce + 1))
+        }
       }
 
       is TransactionTracker.Result.Failed -> {
