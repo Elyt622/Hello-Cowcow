@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - hello-cowcow-2026-app-shell
   pull_request:
     branches:
       - main
