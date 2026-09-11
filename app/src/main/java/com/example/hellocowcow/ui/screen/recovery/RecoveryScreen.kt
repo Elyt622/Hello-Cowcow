@@ -56,12 +56,12 @@ fun RecoveryScreen(
   val transactionState by viewModel.transactionState.collectAsStateWithLifecycle()
   var showTopUpConfirmation by remember { mutableStateOf(false) }
 
-  LaunchedEffect(account.address) {
-    viewModel.load(account.address)
+  LaunchedEffect(account.address, account.nonce) {
+    viewModel.load(account)
   }
 
   val snapshot = (uiState as? RecoveryViewModel.UiState.Success)?.snapshot
-  if (showTopUpConfirmation && snapshot != null) {
+  if (showTopUpConfirmation && snapshot != null && snapshot.recommendedTopUp > BigDecimal.ZERO) {
     TopUpConfirmationDialog(
       amount = snapshot.recommendedTopUp,
       onDismiss = { showTopUpConfirmation = false },
@@ -108,7 +108,7 @@ private fun RecoveryHeader() {
       color = MaterialTheme.colorScheme.onBackground
     )
     Text(
-      text = "Get your CowCows back, step by step.",
+      text = "Claim first, recover the temporary liquidity, then unstake.",
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -167,46 +167,61 @@ private fun RecoveryDiagnostic(
 ) {
   val readyToFund = snapshot.amountToAcquire.compareTo(BigDecimal.ZERO) == 0 &&
       snapshot.recommendedTopUp > BigDecimal.ZERO
+  val readyToClaim = snapshot.recommendedTopUp.compareTo(BigDecimal.ZERO) == 0
   val transactionBusy = transactionState is RecoveryViewModel.TransactionUiState.AwaitingSignature ||
       transactionState is RecoveryViewModel.TransactionUiState.Broadcasting ||
       transactionState is RecoveryViewModel.TransactionUiState.Pending
 
   StatusCard(
-    ready = readyToFund,
-    amountToAcquire = snapshot.amountToAcquire
+    snapshot = snapshot,
+    readyToFund = readyToFund,
+    readyToClaim = readyToClaim
   )
 
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    MetricRow("Rewards owed", snapshot.claimableRewards, "MOOVE")
+    MetricRow("Rewards to claim", snapshot.claimableRewards, "MOOVE")
+    MetricRow(
+      "Contract liquidity",
+      snapshot.contractMooveBalance,
+      "MOOVE",
+      note = "Available at last refresh · may change if another claim lands first"
+    )
+    MetricRow("Claim liquidity gap", snapshot.claimLiquidityGap, "MOOVE")
     MetricRow("Your MOOVE balance", snapshot.walletMooveBalance, "MOOVE")
-    MetricRow("MOOVE to acquire", snapshot.amountToAcquire, "MOOVE", emphasize = true)
-    MetricRow("Recommended top-up", snapshot.recommendedTopUp, "MOOVE")
-    MetricRow("Contract balance", snapshot.contractMooveBalance, "MOOVE", informational = true)
-  }
-
-  if (snapshot.amountToAcquire > BigDecimal.ZERO) {
-    AcquireMooveCard(
-      amountToAcquire = snapshot.amountToAcquire,
-      costState = costState
+    MetricRow(
+      "Temporary MOOVE to buy",
+      snapshot.amountToAcquire,
+      "MOOVE",
+      emphasize = true,
+      note = "Only this amount is priced as temporary external capital"
     )
   }
 
-  TopUpActionCard(
+  RecoveryCostCard(
     snapshot = snapshot,
-    readyToFund = readyToFund,
-    transactionBusy = transactionBusy,
-    transactionState = transactionState,
-    onFundContract = onFundContract,
-    onDismissError = onDismissError
+    costState = costState
   )
 
+  if (snapshot.recommendedTopUp > BigDecimal.ZERO) {
+    TopUpActionCard(
+      snapshot = snapshot,
+      readyToFund = readyToFund,
+      transactionBusy = transactionBusy,
+      transactionState = transactionState,
+      onFundContract = onFundContract,
+      onDismissError = onDismissError
+    )
+  } else {
+    ReadyToClaimCard(snapshot.claimableRewards)
+  }
+
   RecoverySteps()
-  ContractActionLockNotice()
+  ContractActionNotice()
 }
 
 @Composable
-private fun AcquireMooveCard(
-  amountToAcquire: BigDecimal,
+private fun RecoveryCostCard(
+  snapshot: RecoverySnapshot,
   costState: RecoveryViewModel.CostUiState
 ) {
   val uriHandler = LocalUriHandler.current
@@ -223,12 +238,16 @@ private fun AcquireMooveCard(
     ) {
       Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
-          text = "1 · Buy MOOVE",
+          text = "Estimated EGLD loss",
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.SemiBold
         )
         Text(
-          text = "You still need about ${formatMoove(amountToAcquire)} MOOVE before the contract can be funded.",
+          text = if (snapshot.amountToAcquire > BigDecimal.ZERO) {
+            "Price the ${formatMoove(snapshot.amountToAcquire)} MOOVE temporary buy → claim → sell-back cycle."
+          } else {
+            "No MOOVE purchase is needed at the current balances; only network costs remain before unstake."
+          },
           style = MaterialTheme.typography.bodySmall
         )
       }
@@ -241,7 +260,7 @@ private fun AcquireMooveCard(
           ) {
             CircularProgressIndicator()
             Text(
-              "Getting a live xExchange round-trip quote…",
+              "Quoting xExchange and simulating MultiversX fees…",
               style = MaterialTheme.typography.bodySmall
             )
           }
@@ -257,30 +276,84 @@ private fun AcquireMooveCard(
               modifier = Modifier.padding(12.dp),
               verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
+              state.quote?.let { quote ->
+                RecoveryQuoteRow(
+                  "Temporary capital",
+                  "${formatEgld(quote.buyCostEgld)} EGLD"
+                )
+                RecoveryQuoteRow(
+                  "Expected sell-back",
+                  "${formatEgld(quote.expectedSellReturnEgld)} EGLD"
+                )
+                RecoveryQuoteRow(
+                  "Expected DEX friction",
+                  "${formatEgld(state.estimate.expectedDexLossEgld)} EGLD"
+                )
+                RecoveryQuoteRow(
+                  "Worst-case DEX friction",
+                  "${formatEgld(state.estimate.worstCaseDexLossEgld)} EGLD"
+                )
+              }
+
+              state.networkFees?.let { fees ->
+                fees.topUp?.let { topUp ->
+                  RecoveryQuoteRow(
+                    "Top-up network fee",
+                    "${formatEgld(topUp.feeEgld)} EGLD"
+                  )
+                }
+                RecoveryQuoteRow(
+                  "Claim network fee",
+                  "${formatEgld(fees.claim.feeEgld)} EGLD"
+                )
+              }
+
+              RecoveryQuoteRow(
+                "Network fees in estimate",
+                "${formatEgld(state.estimate.estimatedNetworkFeesEgld)} EGLD"
+              )
+              RecoveryQuoteRow(
+                "Expected claim-cycle loss",
+                "${formatEgld(state.estimate.expectedTotalLossEgld)} EGLD"
+              )
+              RecoveryQuoteRow(
+                "Worst-case claim-cycle loss",
+                "${formatEgld(state.estimate.worstCaseTotalLossEgld)} EGLD"
+              )
+
+              state.quote?.let { quote ->
+                RecoveryQuoteRow(
+                  "Temporary capital recovered",
+                  formatPercent(state.estimate.expectedRecoveryRatio)
+                )
+                Text(
+                  "xExchange tolerance: ${formatPercentValue(quote.tolerancePercentage)}.",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
+
               Text(
-                "Live xExchange estimate",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
+                "Claimed rewards: ${formatMoove(snapshot.claimableRewards)} MOOVE. They are your recovered rewards and are not counted as a recovery cost.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
               )
-              RecoveryQuoteRow("Buy cost", "${formatEgld(state.quote.buyCostEgld)} EGLD")
-              RecoveryQuoteRow(
-                "Expected MOOVE → EGLD return",
-                "${formatEgld(state.quote.expectedSellReturnEgld)} EGLD"
-              )
-              RecoveryQuoteRow(
-                "Expected round-trip loss",
-                "${formatEgld(state.dexEstimate.expectedLossEgld)} EGLD"
-              )
-              RecoveryQuoteRow(
-                "Worst case at min received",
-                "${formatEgld(state.dexEstimate.worstCaseLossEgld)} EGLD"
-              )
-              RecoveryQuoteRow(
-                "Expected value recovered",
-                formatPercent(state.dexEstimate.expectedRecoveryRatio)
+
+              val networkNote = when {
+                state.networkFees == null ->
+                  "Network fee estimation is unavailable, so the totals above currently include DEX friction only."
+                state.networkFees.fullySimulated ->
+                  "Top-up and claim fees come from the MultiversX read-only transaction cost simulation."
+                else ->
+                  "At least one network fee uses its configured gas limit as a conservative fallback because live simulation was unavailable."
+              }
+              Text(
+                networkNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
               )
               Text(
-                "xExchange tolerance: ${formatPercentValue(state.quote.tolerancePercentage)}. CowCow unstake/unbond network fees are not included yet.",
+                "xExchange transaction gas plus the later unstake/unbond fees are still separate and are not included in this claim-cycle estimate.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
               )
@@ -290,26 +363,26 @@ private fun AcquireMooveCard(
 
         is RecoveryViewModel.CostUiState.Unavailable -> {
           Text(
-            "Live xExchange estimate unavailable: ${state.message}",
+            "Live loss estimate unavailable: ${state.message}",
             style = MaterialTheme.typography.bodySmall
           )
         }
-
-        RecoveryViewModel.CostUiState.NotNeeded -> Unit
       }
 
-      OutlinedButton(
-        onClick = { uriHandler.openUri(XEXCHANGE_TRADE_URL) },
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        Icon(
-          imageVector = Icons.Filled.OpenInNew,
-          contentDescription = null
-        )
-        Text(
-          text = "Open xExchange",
-          modifier = Modifier.padding(start = 8.dp)
-        )
+      if (snapshot.amountToAcquire > BigDecimal.ZERO) {
+        OutlinedButton(
+          onClick = { uriHandler.openUri(XEXCHANGE_TRADE_URL) },
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Icon(
+            imageVector = Icons.Filled.OpenInNew,
+            contentDescription = null
+          )
+          Text(
+            text = "Open xExchange",
+            modifier = Modifier.padding(start = 8.dp)
+          )
+        }
       }
     }
   }
@@ -354,9 +427,9 @@ private fun TopUpActionCard(
       modifier = Modifier.padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-      Text("2 · Fund CowCow Staking", style = MaterialTheme.typography.titleMedium)
+      Text("2 · Restore claim liquidity", style = MaterialTheme.typography.titleMedium)
       Text(
-        "Send ${formatMoove(snapshot.recommendedTopUp)} MOOVE directly to the CowCow staking contract. The tokens leave your wallet and xPortal will ask you to sign.",
+        "Top up only the current ${formatMoove(snapshot.claimLiquidityGap)} MOOVE contract deficit. After it confirms, claim your rewards before unstaking.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
@@ -367,8 +440,9 @@ private fun TopUpActionCard(
         is RecoveryViewModel.TransactionUiState.Pending -> TransactionStatus("Waiting for on-chain confirmation…", loading = true)
         is RecoveryViewModel.TransactionUiState.Confirmed -> {
           TransactionResultCard(
-            title = "Contract funding confirmed",
+            title = "Claim liquidity restored",
             hash = transactionState.transaction.txHash,
+            detail = "Refresh the claim amount, then claim rewards before unstaking.",
             success = true
           )
         }
@@ -410,12 +484,33 @@ private fun TopUpActionCard(
       ) {
         Text(
           if (snapshot.amountToAcquire > BigDecimal.ZERO) {
-            "Acquire ${formatMoove(snapshot.amountToAcquire)} MOOVE first"
+            "Buy ${formatMoove(snapshot.amountToAcquire)} MOOVE first"
           } else {
-            "Send MOOVE to contract"
+            "Top up ${formatMoove(snapshot.recommendedTopUp)} MOOVE"
           }
         )
       }
+    }
+  }
+}
+
+@Composable
+private fun ReadyToClaimCard(claimableRewards: BigDecimal) {
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(16.dp),
+    color = MaterialTheme.colorScheme.secondaryContainer,
+    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+  ) {
+    Column(
+      modifier = Modifier.padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+      Text("2 · Claim rewards", style = MaterialTheme.typography.titleMedium)
+      Text(
+        "The contract currently has enough liquidity for ${formatMoove(claimableRewards)} MOOVE. No Recovery top-up is needed before the claim.",
+        style = MaterialTheme.typography.bodySmall
+      )
     }
   }
 }
@@ -480,10 +575,10 @@ private fun TopUpConfirmationDialog(
 ) {
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text("Fund CowCow Staking?") },
+    title = { Text("Restore claim liquidity?") },
     text = {
       Text(
-        "You are about to send ${formatMoove(amount)} MOOVE to the legacy CowCow staking contract. xPortal will still ask you to sign the transaction."
+        "You are about to send ${formatMoove(amount)} MOOVE to the legacy CowCow staking contract so it can pay the pending claim. xPortal will still ask you to sign."
       )
     },
     confirmButton = {
@@ -497,9 +592,11 @@ private fun TopUpConfirmationDialog(
 
 @Composable
 private fun StatusCard(
-  ready: Boolean,
-  amountToAcquire: BigDecimal
+  snapshot: RecoverySnapshot,
+  readyToFund: Boolean,
+  readyToClaim: Boolean
 ) {
+  val ready = readyToFund || readyToClaim
   val container = if (ready) {
     MaterialTheme.colorScheme.secondaryContainer
   } else {
@@ -528,15 +625,19 @@ private fun StatusCard(
       )
       Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
-          text = if (ready) "Ready to fund" else "MOOVE missing",
+          text = when {
+            readyToClaim -> "Ready to claim"
+            readyToFund -> "Ready to restore liquidity"
+            else -> "Temporary MOOVE needed"
+          },
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.SemiBold
         )
         Text(
-          text = if (ready) {
-            "Your wallet can cover the recommended top-up."
-          } else {
-            "Acquire ${formatMoove(amountToAcquire)} MOOVE to continue."
+          text = when {
+            readyToClaim -> "The contract already covers your current reward claim."
+            readyToFund -> "Your wallet can cover the current claim-liquidity gap."
+            else -> "Buy about ${formatMoove(snapshot.amountToAcquire)} MOOVE to cover the remaining claim gap."
           },
           style = MaterialTheme.typography.bodySmall
         )
@@ -551,7 +652,7 @@ private fun MetricRow(
   value: BigDecimal,
   unit: String,
   emphasize: Boolean = false,
-  informational: Boolean = false
+  note: String? = null
 ) {
   Card(
     modifier = Modifier.fillMaxWidth(),
@@ -573,9 +674,9 @@ private fun MetricRow(
     ) {
       Column(modifier = Modifier.weight(1f)) {
         Text(label, style = MaterialTheme.typography.labelMedium)
-        if (informational) {
+        note?.let {
           Text(
-            "Global balance · not reserved for you",
+            it,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
@@ -592,11 +693,12 @@ private fun MetricRow(
 @Composable
 private fun RecoverySteps() {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Text("Recovery path", style = MaterialTheme.typography.titleLarge)
-    RecoveryStep(3, "Unstake", "Return the prefunded rewards during the unstake transaction.")
-    RecoveryStep(4, "Wait 7 days", "CowCows remain in the unbonding period.")
-    RecoveryStep(5, "Unbond", "Finalize recovery and return the CowCows to your wallet.")
-    RecoveryStep(6, "Optional · MOOVE → EGLD", "Open xExchange after recovery if you want to swap the returned MOOVE.")
+    Text("Claim-first recovery path", style = MaterialTheme.typography.titleLarge)
+    RecoveryStep(3, "Claim rewards", "Recover the pending MOOVE while the CowCows remain staked.")
+    RecoveryStep(4, "Sell temporary MOOVE", "Swap back the temporary liquidity you had to buy; claimed rewards are separate value recovered.")
+    RecoveryStep(5, "Unstake", "The verified CowCow endpoint takes the staked Cow nonce list. With rewards just claimed, the new reward payout should be minimal.")
+    RecoveryStep(6, "Wait for unbonding", "Keep the CowCows in their contract-defined unbonding state.")
+    RecoveryStep(7, "Unbond", "Finalize recovery once the exact historical unbond call is verified.")
   }
 }
 
@@ -635,7 +737,7 @@ private fun RecoveryStep(number: Int, title: String, detail: String) {
 }
 
 @Composable
-private fun ContractActionLockNotice() {
+private fun ContractActionNotice() {
   Surface(
     modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(14.dp),
@@ -648,9 +750,9 @@ private fun ContractActionLockNotice() {
     ) {
       Icon(Icons.Filled.Lock, contentDescription = null)
       Column {
-        Text("Unstake and unbond are locked", style = MaterialTheme.typography.titleSmall)
+        Text("Unstake verified · unbond still locked", style = MaterialTheme.typography.titleSmall)
         Text(
-          "They will unlock only after the exact CowCow calls are verified from known-working transactions.",
+          "The July 20 mainnet transaction verified the exact unstake payload. Unbond remains locked until a known-working historical transaction is recovered.",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -665,7 +767,7 @@ private fun formatMoove(value: BigDecimal): String = value
   .toPlainString()
 
 private fun formatEgld(value: BigDecimal): String = value
-  .setScale(6, RoundingMode.HALF_UP)
+  .setScale(8, RoundingMode.HALF_UP)
   .stripTrailingZeros()
   .toPlainString()
 
