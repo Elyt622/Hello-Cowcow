@@ -32,6 +32,7 @@ data class TransactionCostRequest(
   val chainID: String,
   val version: Int,
   val options: Int? = null,
+  val guardian: String? = null,
   val data: String? = null
 )
 
