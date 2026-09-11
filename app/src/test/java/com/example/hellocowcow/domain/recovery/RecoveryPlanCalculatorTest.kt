@@ -59,14 +59,17 @@ class RecoveryPlanCalculatorTest {
   }
 
   @Test
-  fun `stake nonces retain leading zeroes and order`() {
+  fun `stake nonces normalize to minimal hex bytes without changing order`() {
     val snapshot = RecoveryPlanCalculator.create(
       claimableRewards = BigDecimal.ZERO,
       walletMooveBalance = BigDecimal.ZERO,
       contractMooveBalance = BigDecimal.ZERO,
-      stakedCowNonces = listOf("0788", "0EB2", "267e", "0fde")
+      stakedCowNonces = listOf("0001", "0788", "0EB2", "267e", "0fde")
     )
 
-    assertEquals(listOf("0788", "0eb2", "267e", "0fde"), snapshot.stakedCowNonces)
+    assertEquals(
+      listOf("01", "0788", "0eb2", "267e", "0fde"),
+      snapshot.stakedCowNonces
+    )
   }
 }
