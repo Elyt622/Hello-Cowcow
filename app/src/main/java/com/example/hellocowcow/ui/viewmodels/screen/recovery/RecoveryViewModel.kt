@@ -276,6 +276,7 @@ class RecoveryViewModel @Inject constructor(
         return@launch
       }
 
+      if (!validateTransactionBeforeSigning(transaction)) return@launch
       requestSignature(
         transaction = transaction,
         topic = topic
@@ -312,6 +313,7 @@ class RecoveryViewModel @Inject constructor(
         return@launch
       }
 
+      if (!validateTransactionBeforeSigning(transaction)) return@launch
       requestSignature(
         transaction = transaction,
         topic = topic
@@ -324,6 +326,20 @@ class RecoveryViewModel @Inject constructor(
       _transactionState.value = TransactionUiState.Idle
       _activeAction.value = null
     }
+  }
+
+  private suspend fun validateTransactionBeforeSigning(transaction: MvxTransaction): Boolean {
+    return runCatching {
+      transactionCostRepository.estimateFee(transaction)
+    }.fold(
+      onSuccess = { true },
+      onFailure = { error ->
+        failAction(
+          error.message ?: "Unable to verify current MultiversX gas before signing"
+        )
+        false
+      }
+    )
   }
 
   private fun beginAction(action: RecoveryAction): Boolean {
