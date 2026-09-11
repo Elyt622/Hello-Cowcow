@@ -39,9 +39,9 @@ val Typography2 = Typography(
     lineHeight = 30.sp
   ),
   titleLarge = TextStyle(
-    fontFamily = CowDisplayFont,
-    fontWeight = FontWeight.Normal,
-    fontSize = 24.sp,
+    fontFamily = FontFamily.Default,
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 22.sp,
     lineHeight = 28.sp
   ),
   titleMedium = TextStyle(
