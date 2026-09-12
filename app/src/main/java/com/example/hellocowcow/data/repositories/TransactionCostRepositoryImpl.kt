@@ -21,6 +21,7 @@ class TransactionCostRepositoryImpl @Inject constructor(
     check(transaction.gasPrice >= minGasPrice) {
       "Configured gas price ${transaction.gasPrice} is below current MultiversX minimum $minGasPrice"
     }
+    require(transaction.gasLimit > 0) { "Transaction gas limit must be positive" }
 
     val simulatedGas = runCatching {
       val response = api.estimateTransactionCost(
@@ -29,6 +30,8 @@ class TransactionCostRepositoryImpl @Inject constructor(
           value = transaction.value,
           receiver = transaction.receiver,
           sender = transaction.sender,
+          gasPrice = transaction.gasPrice,
+          gasLimit = transaction.gasLimit,
           chainID = transaction.chainID,
           version = transaction.version,
           options = transaction.options,
@@ -47,8 +50,6 @@ class TransactionCostRepositoryImpl @Inject constructor(
       ?.takeIf { it > 0L }
 
     val expectedGasUnits = simulatedGas ?: transaction.gasLimit
-    require(transaction.gasLimit > 0) { "Transaction gas limit must be positive" }
-    require(expectedGasUnits > 0) { "Transaction gas estimate must be positive" }
     check(simulatedGas == null || simulatedGas <= transaction.gasLimit) {
       "Live MultiversX gas estimate $simulatedGas exceeds configured gas limit ${transaction.gasLimit}"
     }
