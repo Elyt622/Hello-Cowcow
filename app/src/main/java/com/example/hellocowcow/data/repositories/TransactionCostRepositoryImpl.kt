@@ -24,6 +24,7 @@ class TransactionCostRepositoryImpl @Inject constructor(
     require(transaction.gasLimit > 0) { "Transaction gas limit must be positive" }
 
     var simulationError: String? = null
+    var executionFailure: String? = null
     val simulatedGas = runCatching {
       val response = api.estimateTransactionCost(
         TransactionCostRequest(
@@ -48,16 +49,24 @@ class TransactionCostRepositoryImpl @Inject constructor(
       val gasUnits = response.data?.txGasUnits?.toLongOrNull()
         ?: error("MultiversX did not return transaction gas units")
 
-      check(gasUnits > 0L) {
-        response.data?.returnMessage
+      if (gasUnits <= 0L) {
+        executionFailure = response.data?.returnMessage
           ?.takeIf { it.isNotBlank() }
-          ?: "MultiversX returned 0 gas units for this transaction"
+          ?: "MultiversX simulation returned 0 gas units; the transaction cannot be safely validated"
+        error(executionFailure!!)
       }
 
       gasUnits
     }.onFailure { error ->
       simulationError = error.message ?: error::class.java.simpleName
     }.getOrNull()
+
+    // A zero-gas response is different from a temporary estimation outage: it means the
+    // simulated transaction itself did not produce a usable execution path. Preserve the
+    // contract return message instead of hiding it behind the generic pre-signing error.
+    executionFailure?.let { reason ->
+      error(reason)
+    }
 
     val expectedGasUnits = simulatedGas ?: transaction.gasLimit
     check(simulatedGas == null || simulatedGas <= transaction.gasLimit) {
