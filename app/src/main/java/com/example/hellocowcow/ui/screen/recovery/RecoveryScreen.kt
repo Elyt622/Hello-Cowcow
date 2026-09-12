@@ -68,6 +68,7 @@ fun RecoveryScreen(
   val activeAction by viewModel.activeAction.collectAsStateWithLifecycle()
   var showTopUpConfirmation by remember { mutableStateOf(false) }
   var showClaimConfirmation by remember { mutableStateOf(false) }
+  var showUnstakeConfirmation by remember { mutableStateOf(false) }
 
   LaunchedEffect(account.address, account.nonce) {
     viewModel.load(account)
@@ -106,6 +107,32 @@ fun RecoveryScreen(
     )
   }
 
+  if (
+    showUnstakeConfirmation &&
+    snapshot != null &&
+    snapshot.stakedCowNonces.isNotEmpty()
+  ) {
+    ConfirmationDialog(
+      title = "Unstake all CowCows?",
+      text = "You are about to unstake ${snapshot.stakedCowNonces.size} CowCows. " +
+          "The current MOOVE rewards will also be paid by the CowCow contract during unstake. " +
+          "The transaction will only proceed after you approve it in xPortal.",
+      confirmLabel = "Continue to xPortal",
+      onDismiss = {
+        showUnstakeConfirmation = false
+      },
+      onConfirm = {
+        showUnstakeConfirmation = false
+
+        viewModel.requestUnstakeAll(
+          account = account,
+          topic = topic,
+          expectedNonces = snapshot.stakedCowNonces
+        )
+      }
+    )
+  }
+
   Column(
     modifier = Modifier
       .fillMaxSize()
@@ -125,6 +152,7 @@ fun RecoveryScreen(
         activeAction = activeAction,
         onFundContract = { showTopUpConfirmation = true },
         onClaimRewards = { showClaimConfirmation = true },
+        onUnstakeAll = { showUnstakeConfirmation = true },
         onDismissError = viewModel::clearTransactionError
       )
     }
@@ -155,6 +183,7 @@ private fun RecoveryDiagnostic(
   activeAction: RecoveryViewModel.RecoveryAction?,
   onFundContract: () -> Unit,
   onClaimRewards: () -> Unit,
+  onUnstakeAll: () -> Unit,
   onDismissError: () -> Unit
 ) {
   val snapshot = state.snapshot
@@ -198,7 +227,9 @@ private fun RecoveryDiagnostic(
   ExitStateCard(
     snapshot = snapshot,
     pendingBatches = state.pendingUnbondBatches,
-    nowEpochSeconds = nowEpochSeconds
+    nowEpochSeconds = nowEpochSeconds,
+    transactionBusy = transactionBusy,
+    onUnstakeAll = onUnstakeAll
   )
 
   ProtocolDetailsCard(snapshot)
@@ -583,7 +614,9 @@ private fun RecoveryStage(
 private fun ExitStateCard(
   snapshot: RecoverySnapshot,
   pendingBatches: List<RecoveryUnbondBatch>,
-  nowEpochSeconds: Long
+  nowEpochSeconds: Long,
+  transactionBusy: Boolean,
+  onUnstakeAll: () -> Unit
 ) {
   val claimComplete = isClaimFirstComplete(snapshot)
 
@@ -599,23 +632,35 @@ private fun ExitStateCard(
       Text("CowCow exit", style = MaterialTheme.typography.titleLarge)
 
       if (snapshot.stakedCowNonces.isNotEmpty()) {
+
+        val canUnstake =
+          snapshot.claimLiquidityGap <= BigDecimal.ZERO &&
+              !transactionBusy
+
         RecoveryStage(
           number = 5,
           complete = false,
           title = "Unstake ${snapshot.stakedCowNonces.size} CowCows",
-          detail = if (claimComplete) {
-            "Rewards are cleared. The exact unstake payload can now be inspected in read-only protocol details."
+          detail = if (snapshot.claimLiquidityGap > BigDecimal.ZERO) {
+            "Restore ${formatMoove(snapshot.claimLiquidityGap)} MOOVE of contract liquidity first."
           } else {
-            "Finish the claim-first reward phase before moving to unstake verification."
+            "Unstake will also pay the current pending MOOVE rewards."
           }
         )
-        LockedAction(
-          if (claimComplete) {
-            "Read-only verification available · unstake signing and broadcast remain disabled."
-          } else {
-            "Unstake remains locked until the claim-first state is clear."
-          }
-        )
+
+        Button(
+          onClick = onUnstakeAll,
+          enabled = canUnstake,
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Text(
+            if (snapshot.claimLiquidityGap > BigDecimal.ZERO) {
+              "Restore liquidity first"
+            } else {
+              "Unstake ${snapshot.stakedCowNonces.size} CowCows"
+            }
+          )
+        }
       }
 
       if (pendingBatches.isEmpty()) {
