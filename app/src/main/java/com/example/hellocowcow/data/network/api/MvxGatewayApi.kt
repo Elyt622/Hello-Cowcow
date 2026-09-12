@@ -45,7 +45,8 @@ data class TransactionCostResponse(
 )
 
 data class TransactionCostData(
-  val txGasUnits: String? = null
+  val txGasUnits: String? = null,
+  val returnMessage: String? = null
 )
 
 data class NetworkConfigResponse(
