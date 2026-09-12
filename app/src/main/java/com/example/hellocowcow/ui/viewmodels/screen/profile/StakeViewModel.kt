@@ -42,10 +42,19 @@ class StakeViewModel @Inject constructor(
     getAllDataForUser()
       .map(CowCowUserDataDecoder::decodeStakedCowNonces)
       .map { nonces -> nonces.map { nonce -> "COW-cd463d-$nonce" } }
+      // Do not fan out one HTTP request per staked NFT. Large wallets (100+ CowCows)
+      // can otherwise hit the public MultiversX API rate limit almost instantly.
+      .flatMapIterable { identifiers -> identifiers.chunked(NFT_BATCH_SIZE) }
+      // Keep batches sequential so loading a large stake never creates a request burst.
+      .concatMap { batch ->
+        nftRepository.getCowsWithCollection(
+          identifiers = batch.joinToString(separator = ","),
+          size = batch.size,
+          from = 0
+        ).toObservable()
+      }
       .flatMapIterable { it }
-      .flatMap { nft ->
-        nftRepository.getNftXoxno(nft).toObservable()
-      }.toList()
+      .toList()
       .subscribeOn(Schedulers.io())
       .subscribeBy(
         onSuccess = { nfts ->
@@ -69,4 +78,8 @@ class StakeViewModel @Inject constructor(
         address.value
       )
     ).map { it.returnData[0] }
+
+  private companion object {
+    const val NFT_BATCH_SIZE = 40
+  }
 }
