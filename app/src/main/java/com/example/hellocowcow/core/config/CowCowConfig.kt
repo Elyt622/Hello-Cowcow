@@ -13,7 +13,15 @@ object CowCowConfig {
   const val MAINNET_CAIP_CHAIN_ID = "mvx:1"
   const val MIN_GAS_PRICE = 1_000_000_000L
   const val CLAIM_REWARDS_GAS_LIMIT = 30_000_000L
-  const val UNSTAKE_GAS_LIMIT = 600_000_000L
+
+  // 600M is a verified historical CowCow unstake ceiling, but using that full
+  // ceiling as the signed transaction limit can be rejected by current network
+  // gas-per-transaction/block checks (and a guarded account adds extra gas on top).
+  // 250M remains comfortably above the observed 72-Cow execution (~111M) while
+  // leaving room for guarded-account overhead. Live /transaction/cost validation
+  // still runs immediately before xPortal signing and fails closed if this is too low.
+  const val UNSTAKE_GAS_LIMIT = 250_000_000L
+
   const val FINAL_CLAIM_GAS_LIMIT = 270_000_000L
   const val ESDT_TRANSFER_GAS_LIMIT = 500_000L
   const val GUARDED_TRANSACTION_GAS_OVERHEAD = 50_000L
