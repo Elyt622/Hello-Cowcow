@@ -51,7 +51,9 @@ fun NftCard(
         .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
     ) {
       GlideImage(
-        model = nft.webpUrl ?: nft.url,
+        // Grid cards do not need the full-size NFT image. Prefer the API thumbnail
+        // to reduce bandwidth/request pressure while quickly scrolling large wallets.
+        model = nft.thumbnailUrl ?: nft.webpUrl ?: nft.url,
         contentDescription = nft.name ?: nft.identifier,
         modifier = Modifier.fillMaxWidth(),
         contentScale = ContentScale.Crop
