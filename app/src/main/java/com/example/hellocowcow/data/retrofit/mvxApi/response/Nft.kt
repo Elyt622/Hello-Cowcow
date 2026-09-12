@@ -15,7 +15,7 @@ data class Nft (
   @SerializedName("type"                 ) var type                 : String?           = null,
   @SerializedName("name"                 ) var name                 : String?           = null,
   @SerializedName("creator"              ) var creator              : String?           = null,
-  @SerializedName("royalties"            ) var royalties            : Double?              = null,
+  @SerializedName("royalties"            ) var royalties            : Double?           = null,
   @SerializedName("uris"                 ) var uris                 : ArrayList<String> = arrayListOf(),
   @SerializedName("url"                  ) var url                  : String?           = null,
   @SerializedName("media"                ) var media                : ArrayList<Media>  = arrayListOf(),
@@ -25,12 +25,13 @@ data class Nft (
   @SerializedName("score"                ) var score                : Double?           = null,
   @SerializedName("rank"                 ) var rank                 : Int?              = null,
   @SerializedName("isNsfw"               ) var isNsfw               : Boolean?          = null,
-  @SerializedName("assets"               ) var assets               : Assets?   = Assets()
+  @SerializedName("assets"               ) var assets               : Assets?           = Assets()
 
 ) : DomainModelConvertible<DomainNft> {
-  override fun toDomain()
-      : DomainNft =
-    DomainNft(
+  override fun toDomain(): DomainNft {
+    val primaryMedia = media.firstOrNull()
+
+    return DomainNft(
       identifier = identifier,
       collection = collection,
       attributes = attributes,
@@ -38,8 +39,10 @@ data class Nft (
       creator = creator,
       royalties = royalties,
       uris = uris,
-      url = url,
+      // Prefer the API media URL when present and keep the top-level URL as fallback.
+      url = primaryMedia?.url ?: url,
+      thumbnailUrl = primaryMedia?.thumbnailUrl,
       ticker = ticker
     )
-
+  }
 }
