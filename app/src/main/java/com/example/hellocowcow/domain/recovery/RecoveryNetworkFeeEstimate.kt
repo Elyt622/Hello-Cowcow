@@ -7,7 +7,8 @@ data class TransactionFeeEstimate(
   val maxFeeEgld: BigDecimal,
   val gasUnits: Long,
   val gasLimit: Long,
-  val simulated: Boolean
+  val simulated: Boolean,
+  val simulationError: String? = null
 ) {
   companion object {
     val ZERO = TransactionFeeEstimate(
@@ -15,7 +16,8 @@ data class TransactionFeeEstimate(
       maxFeeEgld = BigDecimal.ZERO,
       gasUnits = 0L,
       gasLimit = 0L,
-      simulated = true
+      simulated = true,
+      simulationError = null
     )
   }
 }
