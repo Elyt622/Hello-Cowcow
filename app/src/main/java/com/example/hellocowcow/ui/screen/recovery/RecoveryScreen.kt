@@ -69,6 +69,7 @@ fun RecoveryScreen(
   var showTopUpConfirmation by remember { mutableStateOf(false) }
   var showClaimConfirmation by remember { mutableStateOf(false) }
   var showUnstakeConfirmation by remember { mutableStateOf(false) }
+  var finalClaimConfirmationBatch by remember { mutableStateOf<RecoveryUnbondBatch?>(null) }
 
   LaunchedEffect(account.address, account.nonce) {
     viewModel.load(account)
@@ -133,6 +134,23 @@ fun RecoveryScreen(
     )
   }
 
+  finalClaimConfirmationBatch?.let { batch ->
+    ConfirmationDialog(
+      title = "Claim ${batch.cowNonces.size} CowCow${if (batch.cowNonces.size == 1) "" else "s"}?",
+      text = "This is the final CowCow exit call for this unbond batch. Recovery will rebuild the on-chain unstake/claim history, verify that the exact nonce set is still pending, and require a live MultiversX simulation before xPortal is opened.",
+      confirmLabel = "Claim CowCows in xPortal",
+      onDismiss = { finalClaimConfirmationBatch = null },
+      onConfirm = {
+        finalClaimConfirmationBatch = null
+        viewModel.requestFinalClaim(
+          account = account,
+          topic = topic,
+          expectedBatch = batch
+        )
+      }
+    )
+  }
+
   Column(
     modifier = Modifier
       .fillMaxSize()
@@ -153,6 +171,7 @@ fun RecoveryScreen(
         onFundContract = { showTopUpConfirmation = true },
         onClaimRewards = { showClaimConfirmation = true },
         onUnstakeAll = { showUnstakeConfirmation = true },
+        onFinalClaim = { batch -> finalClaimConfirmationBatch = batch },
         onDismissError = viewModel::clearTransactionError
       )
     }
@@ -184,6 +203,7 @@ private fun RecoveryDiagnostic(
   onFundContract: () -> Unit,
   onClaimRewards: () -> Unit,
   onUnstakeAll: () -> Unit,
+  onFinalClaim: (RecoveryUnbondBatch) -> Unit,
   onDismissError: () -> Unit
 ) {
   val snapshot = state.snapshot
@@ -229,7 +249,8 @@ private fun RecoveryDiagnostic(
     pendingBatches = state.pendingUnbondBatches,
     nowEpochSeconds = nowEpochSeconds,
     transactionBusy = transactionBusy,
-    onUnstakeAll = onUnstakeAll
+    onUnstakeAll = onUnstakeAll,
+    onFinalClaim = onFinalClaim
   )
 
   ProtocolDetailsCard(snapshot)
@@ -251,8 +272,8 @@ private fun RecoveryOverviewCard(
     else -> "No staked CowCows detected"
   }
   val detail = when {
-    pendingCowCount > 0 -> "Exit started · waiting for the conservative claim threshold."
-    stakedCount > 0 && claimComplete -> "Rewards cleared · claim liquidity settled · read-only unstake verification available."
+    pendingCowCount > 0 -> "Exit started · final claim unlocks at the conservative historical threshold."
+    stakedCount > 0 && claimComplete -> "Rewards cleared · claim liquidity settled · verified unstake action available."
     stakedCount > 0 -> "Finish the claim-first steps before moving to the verified unstake path."
     else -> "There is no active CowCow stake visible in the contract response."
   }
@@ -376,7 +397,7 @@ private fun RecoveryCostCard(
         StatusLine(
           icon = Icons.Filled.CheckCircle,
           title = "No temporary MOOVE purchase required",
-          detail = "Unstake network fee is not estimated yet."
+          detail = "Exit-call network fees are simulated immediately before signing."
         )
       }
     }
@@ -428,7 +449,7 @@ private fun RecoveryCostCard(
             RecoveryQuoteRow("Temporary capital recovered", formatPercent(state.estimate.expectedRecoveryRatio))
           }
           Text(
-            "Accrued MOOVE rewards are recovered value, not recovery loss. Exit-call fees stay separate until those builders are enabled.",
+            "Accrued MOOVE rewards are recovered value, not recovery loss. Exit-call fees stay separate and are simulated immediately before signing.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
@@ -616,10 +637,9 @@ private fun ExitStateCard(
   pendingBatches: List<RecoveryUnbondBatch>,
   nowEpochSeconds: Long,
   transactionBusy: Boolean,
-  onUnstakeAll: () -> Unit
+  onUnstakeAll: () -> Unit,
+  onFinalClaim: (RecoveryUnbondBatch) -> Unit
 ) {
-  val claimComplete = isClaimFirstComplete(snapshot)
-
   Surface(
     modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(16.dp),
@@ -676,7 +696,9 @@ private fun ExitStateCard(
           UnbondBatchCard(
             index = index + 1,
             batch = batch,
-            nowEpochSeconds = nowEpochSeconds
+            nowEpochSeconds = nowEpochSeconds,
+            transactionBusy = transactionBusy,
+            onFinalClaim = { onFinalClaim(batch) }
           )
         }
       }
@@ -710,7 +732,7 @@ private fun ProtocolDetailsCard(snapshot: RecoverySnapshot) {
         Column(modifier = Modifier.weight(1f)) {
           Text("Protocol details", style = MaterialTheme.typography.titleMedium)
           Text(
-            "Read-only payload, nonce count and historical gas ceiling",
+            "Payload, nonce count and configured transaction gas limit",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
@@ -733,7 +755,7 @@ private fun ProtocolDetailsCard(snapshot: RecoverySnapshot) {
               verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
               RecoveryQuoteRow("CowCows in payload", preview.nonces.size.toString())
-              RecoveryQuoteRow("Historical gas ceiling", formatInteger(CowCowConfig.UNSTAKE_GAS_LIMIT))
+              RecoveryQuoteRow("Configured unstake gas limit", formatInteger(CowCowConfig.UNSTAKE_GAS_LIMIT))
               RecoveryQuoteRow("Current rewards before unstake", "${formatMoove(snapshot.claimableRewards)} MOOVE")
 
               if (snapshot.claimableRewards > BigDecimal.ZERO) {
@@ -765,18 +787,18 @@ private fun ProtocolDetailsCard(snapshot: RecoverySnapshot) {
               }
 
               Text(
-                "600M is a conservative historical ceiling from a successful 72-CowCow unstake, not a live simulation.",
+                "600M was observed as a successful 72-CowCow historical ceiling. The app signs with the lower configured limit above and requires a live simulation before xPortal.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
               )
               LockedAction(
-                "Preview only · no unstake signature or broadcast can be triggered here."
+                "Signing remains gated by fresh on-chain state and live MultiversX simulation."
               )
             }
           }
         }.onFailure { error ->
           Text(
-            "Unable to build the read-only preview: ${error.message}",
+            "Unable to build the protocol preview: ${error.message}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
@@ -790,7 +812,9 @@ private fun ProtocolDetailsCard(snapshot: RecoverySnapshot) {
 private fun UnbondBatchCard(
   index: Int,
   batch: RecoveryUnbondBatch,
-  nowEpochSeconds: Long
+  nowEpochSeconds: Long,
+  transactionBusy: Boolean,
+  onFinalClaim: () -> Unit
 ) {
   val ready = batch.isReady(nowEpochSeconds)
   Card(
@@ -806,7 +830,7 @@ private fun UnbondBatchCard(
   ) {
     Column(
       modifier = Modifier.padding(14.dp),
-      verticalArrangement = Arrangement.spacedBy(6.dp)
+      verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
       Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -824,7 +848,7 @@ private fun UnbondBatchCard(
       }
       Text(
         if (ready) {
-          "Observed-safe delay reached. A successful final claim for the same CowCow nonces was observed after this delay; the contract's exact minimum is not yet proven."
+          "Observed-safe delay reached. The exact batch will still be rebuilt from current on-chain history and live-simulated before signing."
         } else {
           "Conservative historical threshold ${formatReadyAt(batch.claimableAtEpochSeconds)} · ${formatRemaining(batch.claimableAtEpochSeconds - nowEpochSeconds)} remaining."
         },
@@ -836,9 +860,15 @@ private fun UnbondBatchCard(
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
       if (ready) {
-        LockedAction(
-          "The verified final call is claim@<nonce>…; its transaction builder is not enabled in this build."
-        )
+        Button(
+          onClick = onFinalClaim,
+          enabled = !transactionBusy,
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Text(
+            "Claim ${batch.cowNonces.size} CowCow${if (batch.cowNonces.size == 1) "" else "s"}"
+          )
+        }
       }
     }
   }
@@ -856,6 +886,7 @@ private fun TransactionActionStatus(
     RecoveryViewModel.RecoveryAction.TOP_UP -> "MOOVE top-up"
     RecoveryViewModel.RecoveryAction.CLAIM_REWARDS -> "MOOVE claim"
     RecoveryViewModel.RecoveryAction.UNSTAKE -> "CowCow unstake"
+    RecoveryViewModel.RecoveryAction.FINAL_CLAIM -> "CowCow final claim"
     null -> "Recovery transaction"
   }
 

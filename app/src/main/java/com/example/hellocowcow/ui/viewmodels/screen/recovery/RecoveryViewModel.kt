@@ -11,6 +11,7 @@ import com.example.hellocowcow.domain.models.DomainTransaction
 import com.example.hellocowcow.domain.models.MvxTransaction
 import com.example.hellocowcow.domain.models.RecoverySnapshot
 import com.example.hellocowcow.domain.models.RecoveryUnbondBatch
+import com.example.hellocowcow.domain.recovery.CowCowFinalClaimGuard
 import com.example.hellocowcow.domain.recovery.RecoveryCostCalculator
 import com.example.hellocowcow.domain.recovery.RecoveryCostEstimate
 import com.example.hellocowcow.domain.recovery.RecoveryCostEstimateInput
@@ -25,6 +26,7 @@ import com.example.hellocowcow.domain.repositories.RewardsRepository
 import com.example.hellocowcow.domain.repositories.TransactionCostRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
 import com.example.hellocowcow.domain.transactions.ClaimTransactionFactory
+import com.example.hellocowcow.domain.transactions.CowCowFinalClaimTransactionFactory
 import com.example.hellocowcow.domain.transactions.CowCowUnstakeTransactionFactory
 import com.example.hellocowcow.domain.transactions.RecoveryTopUpTransactionFactory
 import com.example.hellocowcow.domain.transactions.TransactionTracker
@@ -53,7 +55,8 @@ class RecoveryViewModel @Inject constructor(
   enum class RecoveryAction {
     TOP_UP,
     CLAIM_REWARDS,
-    UNSTAKE
+    UNSTAKE,
+    FINAL_CLAIM
   }
 
   sealed interface UiState {
@@ -385,12 +388,70 @@ class RecoveryViewModel @Inject constructor(
         return@launch
       }
 
-      // Important : simulation live avant xPortal
       if (!validateTransactionBeforeSigning(transaction)) {
         return@launch
       }
 
-      // Même pipeline que claimRewards
+      requestSignature(
+        transaction = transaction,
+        topic = topic
+      )
+    }
+  }
+
+  fun requestFinalClaim(
+    account: DomainAccount,
+    topic: String,
+    expectedBatch: RecoveryUnbondBatch
+  ) {
+    if (!beginAction(RecoveryAction.FINAL_CLAIM)) return
+
+    viewModelScope.launch {
+      val refreshed = refreshAccountAndSnapshot(account.address)
+        ?: return@launch
+      val (latestAccount, _) = refreshed
+
+      val latestPendingBatches = runCatching {
+        recoveryHistoryRepository.getPendingUnbondBatches(account.address)
+      }.getOrElse { error ->
+        failAction(
+          error.message
+            ?: "Unable to rebuild CowCow unbond history before the final claim"
+        )
+        return@launch
+      }
+
+      val guard = CowCowFinalClaimGuard.validate(
+        expectedBatch = expectedBatch,
+        latestPendingBatches = latestPendingBatches,
+        nowEpochSeconds = System.currentTimeMillis() / 1000L
+      )
+
+      val ready = when (guard) {
+        is CowCowFinalClaimGuard.Result.Blocked -> {
+          failAction(guard.reason)
+          return@launch
+        }
+        is CowCowFinalClaimGuard.Result.Ready -> guard
+      }
+
+      val transaction = runCatching {
+        CowCowFinalClaimTransactionFactory.create(
+          account = latestAccount,
+          cowNonces = ready.nonces
+        )
+      }.getOrElse { error ->
+        failAction(
+          error.message
+            ?: "Unable to prepare the CowCow final claim"
+        )
+        return@launch
+      }
+
+      if (!validateTransactionBeforeSigning(transaction)) {
+        return@launch
+      }
+
       requestSignature(
         transaction = transaction,
         topic = topic
