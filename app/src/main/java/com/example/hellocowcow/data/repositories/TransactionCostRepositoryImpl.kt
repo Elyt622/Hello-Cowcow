@@ -23,6 +23,7 @@ class TransactionCostRepositoryImpl @Inject constructor(
     }
     require(transaction.gasLimit > 0) { "Transaction gas limit must be positive" }
 
+    var simulationError: String? = null
     val simulatedGas = runCatching {
       val response = api.estimateTransactionCost(
         TransactionCostRequest(
@@ -44,10 +45,19 @@ class TransactionCostRepositoryImpl @Inject constructor(
         response.error ?: "MultiversX transaction cost estimation failed"
       }
 
-      response.data?.txGasUnits?.toLongOrNull()
+      val gasUnits = response.data?.txGasUnits?.toLongOrNull()
         ?: error("MultiversX did not return transaction gas units")
+
+      check(gasUnits > 0L) {
+        response.data?.returnMessage
+          ?.takeIf { it.isNotBlank() }
+          ?: "MultiversX returned 0 gas units for this transaction"
+      }
+
+      gasUnits
+    }.onFailure { error ->
+      simulationError = error.message ?: error::class.java.simpleName
     }.getOrNull()
-      ?.takeIf { it > 0L }
 
     val expectedGasUnits = simulatedGas ?: transaction.gasLimit
     check(simulatedGas == null || simulatedGas <= transaction.gasLimit) {
@@ -67,7 +77,8 @@ class TransactionCostRepositoryImpl @Inject constructor(
       ),
       gasUnits = expectedGasUnits,
       gasLimit = transaction.gasLimit,
-      simulated = simulatedGas != null
+      simulated = simulatedGas != null,
+      simulationError = simulationError
     )
   }
 
