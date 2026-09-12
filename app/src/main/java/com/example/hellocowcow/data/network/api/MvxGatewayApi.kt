@@ -29,6 +29,8 @@ data class TransactionCostRequest(
   val value: String,
   val receiver: String,
   val sender: String,
+  val gasPrice: Long,
+  val gasLimit: Long,
   val chainID: String,
   val version: Int,
   val options: Int? = null,
