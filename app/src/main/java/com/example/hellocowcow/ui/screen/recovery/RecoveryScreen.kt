@@ -810,6 +810,7 @@ private fun TransactionActionStatus(
   val actionName = when (activeAction) {
     RecoveryViewModel.RecoveryAction.TOP_UP -> "MOOVE top-up"
     RecoveryViewModel.RecoveryAction.CLAIM_REWARDS -> "MOOVE claim"
+    RecoveryViewModel.RecoveryAction.UNSTAKE -> "CowCow unstake"
     null -> "Recovery transaction"
   }
 

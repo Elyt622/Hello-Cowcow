@@ -25,6 +25,7 @@ import com.example.hellocowcow.domain.repositories.RewardsRepository
 import com.example.hellocowcow.domain.repositories.TransactionCostRepository
 import com.example.hellocowcow.domain.repositories.TransactionRepository
 import com.example.hellocowcow.domain.transactions.ClaimTransactionFactory
+import com.example.hellocowcow.domain.transactions.CowCowUnstakeTransactionFactory
 import com.example.hellocowcow.domain.transactions.RecoveryTopUpTransactionFactory
 import com.example.hellocowcow.domain.transactions.TransactionTracker
 import com.google.gson.Gson
@@ -51,7 +52,8 @@ class RecoveryViewModel @Inject constructor(
 
   enum class RecoveryAction {
     TOP_UP,
-    CLAIM_REWARDS
+    CLAIM_REWARDS,
+    UNSTAKE
   }
 
   sealed interface UiState {
@@ -314,6 +316,81 @@ class RecoveryViewModel @Inject constructor(
       }
 
       if (!validateTransactionBeforeSigning(transaction)) return@launch
+      requestSignature(
+        transaction = transaction,
+        topic = topic
+      )
+    }
+  }
+
+  fun requestUnstakeAll(
+    account: DomainAccount,
+    topic: String,
+    expectedNonces: List<String>
+  ) {
+    if (!beginAction(RecoveryAction.UNSTAKE)) return
+
+    viewModelScope.launch {
+      val refreshed = refreshAccountAndSnapshot(account.address)
+        ?: return@launch
+
+      val (latestAccount, latestSnapshot) = refreshed
+
+      val latestNonces = runCatching {
+        CowCowUserDataDecoder.decodeStakedCowNonces(
+          rewardsRepository.getUserData(account.address)
+        )
+      }.getOrElse { error ->
+        failAction(
+          error.message
+            ?: "Unable to re-read staked CowCows"
+        )
+        return@launch
+      }
+
+      if (latestNonces.isEmpty()) {
+        failAction("No staked CowCows remain")
+        return@launch
+      }
+
+      if (latestNonces != expectedNonces) {
+        failAction(
+          "The staked CowCow list changed. " +
+              "Refresh Recovery before continuing."
+        )
+        return@launch
+      }
+
+      if (latestSnapshot.claimLiquidityGap > BigDecimal.ZERO) {
+        failAction(
+          "CowCow staking is missing ${
+            latestSnapshot.claimLiquidityGap
+              .stripTrailingZeros()
+              .toPlainString()
+          } MOOVE. Restore liquidity before unstaking."
+        )
+        return@launch
+      }
+
+      val transaction = runCatching {
+        CowCowUnstakeTransactionFactory.create(
+          account = latestAccount,
+          cowNonces = latestNonces
+        )
+      }.getOrElse { error ->
+        failAction(
+          error.message
+            ?: "Unable to prepare CowCow unstake"
+        )
+        return@launch
+      }
+
+      // Important : simulation live avant xPortal
+      if (!validateTransactionBeforeSigning(transaction)) {
+        return@launch
+      }
+
+      // Même pipeline que claimRewards
       requestSignature(
         transaction = transaction,
         topic = topic
