@@ -40,13 +40,15 @@ class TransactionCostRepositoryImpl @Inject constructor(
       check(response.error.isNullOrBlank()) {
         response.error ?: "MultiversX transaction cost estimation failed"
       }
+
       response.data?.txGasUnits?.toLongOrNull()
         ?: error("MultiversX did not return transaction gas units")
     }.getOrNull()
+      ?.takeIf { it > 0L }
 
     val expectedGasUnits = simulatedGas ?: transaction.gasLimit
-    require(expectedGasUnits > 0) { "Transaction gas estimate must be positive" }
     require(transaction.gasLimit > 0) { "Transaction gas limit must be positive" }
+    require(expectedGasUnits > 0) { "Transaction gas estimate must be positive" }
     check(simulatedGas == null || simulatedGas <= transaction.gasLimit) {
       "Live MultiversX gas estimate $simulatedGas exceeds configured gas limit ${transaction.gasLimit}"
     }
