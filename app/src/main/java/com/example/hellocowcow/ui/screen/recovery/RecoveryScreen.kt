@@ -1188,7 +1188,7 @@ private fun isClaimFirstComplete(snapshot: RecoverySnapshot): Boolean {
       snapshot.amountToAcquire <= BigDecimal.ZERO
 }
 
-private fun calculateDesiredTopUp(
+internal fun calculateDesiredTopUp(
   claimLiquidityGap: BigDecimal,
   marginPercentage: BigDecimal
 ): BigDecimal {
@@ -1197,10 +1197,14 @@ private fun calculateDesiredTopUp(
   val multiplier = BigDecimal.ONE.add(
     marginPercentage.divide(ONE_HUNDRED)
   )
+  // A percentage can introduce fractional atomic units. Round the target up
+  // before it is displayed, wallet-capped, confirmed and passed to the strict encoder.
   return claimLiquidityGap.multiply(multiplier)
+    .setScale(CowCowConfig.MOOVE_DECIMALS, RoundingMode.CEILING)
+    .stripTrailingZeros()
 }
 
-private fun calculateAvailableTopUp(
+internal fun calculateAvailableTopUp(
   snapshot: RecoverySnapshot,
   marginPercentage: BigDecimal
 ): BigDecimal {
@@ -1208,7 +1212,10 @@ private fun calculateAvailableTopUp(
     snapshot.claimLiquidityGap,
     marginPercentage
   )
+  // Never round a wallet cap upward: the selected amount must remain spendable.
   return desired.min(snapshot.walletMooveBalance)
+    .setScale(CowCowConfig.MOOVE_DECIMALS, RoundingMode.DOWN)
+    .stripTrailingZeros()
 }
 
 private fun formatMarginPercentage(value: BigDecimal): String =
