@@ -1,0 +1,27 @@
+{
+  "name": "VarAprStake",
+  "endpoints": [{"name": "getAllDataForUser", "mutability": "readonly", "inputs": [{"name": "address", "type": "optional<Address>", "multi_arg": true}], "outputs": [{"type": "DataOut"}]}],
+  "types": {
+    "DataOut": {"type": "struct", "fields": [
+      {"name": "staked_nfts", "type": "List<u64>"},
+      {"name": "unstaked_nfts", "type": "List<UnstakedNft>"},
+      {"name": "total_value_locked", "type": "BigUint"},
+      {"name": "reward_per_block", "type": "BigUint"},
+      {"name": "one_share", "type": "BigUint"},
+      {"name": "min_stake_amount", "type": "BigUint"},
+      {"name": "min_reward_amount", "type": "BigUint"},
+      {"name": "unlock_period", "type": "u64"},
+      {"name": "rewards_accumulated_for_user", "type": "List<EsdtTokenPayment>"},
+      {"name": "shares", "type": "BigUint"}
+    ]},
+    "EsdtTokenPayment": {"type": "struct", "fields": [
+      {"name": "token_identifier", "type": "TokenIdentifier"},
+      {"name": "token_nonce", "type": "u64"},
+      {"name": "amount", "type": "BigUint"}
+    ]},
+    "UnstakedNft": {"type": "struct", "fields": [
+      {"name": "nonce", "type": "u64"},
+      {"name": "unlock_time", "type": "u64"}
+    ]}
+  }
+}

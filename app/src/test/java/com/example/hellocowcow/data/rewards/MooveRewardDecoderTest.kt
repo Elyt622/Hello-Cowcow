@@ -1,5 +1,7 @@
 package com.example.hellocowcow.data.rewards
 
+import com.example.hellocowcow.data.recovery.CowCowDataOutFixture
+import com.example.hellocowcow.data.recovery.CowCowDataOutFixture.Payment
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.util.Base64
@@ -8,130 +10,99 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class MooveRewardDecoderTest {
-
   @Test
-  fun `decodes legacy CowCow reward amount`() {
-    // Base64 decodes to 07 | 00005af3107a4000.
-    // The first byte is the tail of the legacy nested-length prefix; this fixture
-    // intentionally is not a complete getAllDataForUser Base64 payload.
-    val result = MooveRewardDecoder.decodeClaimableAmount(
-      "contract-prefix-BwBa8xB6QAA"
-    )
-
-    assertEquals(0, BigDecimal("0.0001").compareTo(result))
+  fun `real 104 CowCow response returns the identified MOOVE payment exactly`() {
+    assertAmount("107243.50430364948", CowCowDataOutFixture.recorded("mainnet-104-cows"))
   }
 
   @Test
-  fun `preserves all token decimals instead of rounding recovery liquidity`() {
-    val atomicAmount = BigInteger("1234567890123456")
-    val encoded = encodeNestedReward(
-      prefix = byteArrayOf(0x00, 0x04, 0x07, 0x88.toByte()),
-      atomicAmount = atomicAmount
-    )
-
-    val result = MooveRewardDecoder.decodeClaimableAmount(encoded)
-
-    assertEquals(0, BigDecimal("0.001234567890123456").compareTo(result))
+  fun `real empty position is zero despite nonzero global contract settings`() {
+    assertAmount("0", CowCowDataOutFixture.recorded("mainnet-empty"))
   }
 
   @Test
-  fun `decodes large reward before trailing zero metadata for 104 CowCows`() {
-    val rewardAtomic = BigDecimal("106000.123456789012345678")
-      .movePointRight(18)
-      .toBigIntegerExact()
-
-    val stakePrefix = buildList<Byte> {
-      add(0x00)
-      add(0x68) // 104 CowCows
-      repeat(104) { index ->
-        add(((index + 1) ushr 8).toByte())
-        add(((index + 1) and 0xff).toByte())
-      }
-    }.toByteArray()
-
-    val bytes = stakePrefix +
-        encodeNestedBigUint(rewardAtomic) +
-        byteArrayOf(0x00, 0x00, 0x00, 0x00)
-
-    val encoded = Base64.getEncoder().encodeToString(bytes)
-    val result = MooveRewardDecoder.decodeClaimableAmount(encoded)
-
-    assertEquals(
-      0,
-      BigDecimal("106000.123456789012345678").compareTo(result)
-    )
+  fun `selects MOOVE by token identifier in every reward list position`() {
+    val moove = Payment("MOOVE-875539", BigInteger("106000123456789012345678"))
+    val bigger = Payment("OTHER-abcdef", BigInteger.TEN.pow(60))
+    for (payments in listOf(listOf(moove, bigger), listOf(bigger, moove))) {
+      assertAmount("106000.123456789012345678", CowCowDataOutFixture.encode(payments = payments))
+    }
   }
 
   @Test
-  fun `nested zero reward decodes to zero after claimRewards`() {
-    val bytes = byteArrayOf(
-      0x00, 0x00, // synthetic staked-Cow count
-      0x00, 0x00, 0x00, 0x00 // nested BigUint zero length
-    )
-    val encoded = Base64.getEncoder().encodeToString(bytes)
-
-    val result = MooveRewardDecoder.decodeClaimableAmount(encoded)
-
-    assertEquals(0, BigDecimal.ZERO.compareTo(result))
+  fun `no MOOVE payment is zero even when other token rewards are huge`() {
+    assertAmount("0", CowCowDataOutFixture.encode(
+      payments = listOf(Payment("OTHER-abcdef", BigInteger.TEN.pow(60)))
+    ))
   }
 
   @Test
-  fun `ambiguous equally-sized BigUints fail closed instead of guessing`() {
-    val first = BigInteger("12345678901234567890123")
-    val second = BigInteger("22345678901234567890123")
-    val bytes = byteArrayOf(0x00, 0x01) +
-        encodeNestedBigUint(first) +
-        encodeNestedBigUint(second)
+  fun `zero and single atomic MOOVE amounts keep full precision`() {
+    for (atomic in listOf(BigInteger.ZERO, BigInteger.ONE)) {
+      assertAmount(atomic.toBigDecimal(18).toPlainString(), CowCowDataOutFixture.encode(
+        payments = listOf(Payment("MOOVE-875539", atomic))
+      ))
+    }
+  }
 
-    val encoded = Base64.getEncoder().encodeToString(bytes)
+  @Test
+  fun `sums multiple fungible MOOVE payments only`() {
+    assertAmount("3", CowCowDataOutFixture.encode(payments = listOf(
+      Payment("MOOVE-875539", BigInteger.TEN.pow(18)),
+      Payment("OTHER-abcdef", BigInteger.TEN.pow(60)),
+      Payment("MOOVE-875539", BigInteger.valueOf(2).multiply(BigInteger.TEN.pow(18)))
+    )))
+  }
 
+  @Test
+  fun `unstaked lists and shares do not change the reward field`() {
+    assertAmount("1", CowCowDataOutFixture.encode(
+      staked = listOf(1L, 104L, 65536L),
+      unstaked = listOf(999L to 1800000000L, 123L to 1800000100L),
+      payments = listOf(Payment("MOOVE-875539", BigInteger.TEN.pow(18))),
+      shares = BigInteger.TEN.pow(70)
+    ))
+  }
+
+  @Test
+  fun `nonzero MOOVE nonce is rejected rather than treated as fungible rewards`() {
     assertThrows(IllegalArgumentException::class.java) {
-      MooveRewardDecoder.decodeClaimableAmount(encoded)
+      MooveRewardDecoder.decodeClaimableAmount(CowCowDataOutFixture.encode(
+        payments = listOf(Payment("MOOVE-875539", BigInteger.ONE, nonce = 1))
+      ))
     }
   }
 
   @Test
-  fun `short unexpected response fails with a domain error instead of substring crash`() {
-    val error = assertThrows(IllegalArgumentException::class.java) {
-      MooveRewardDecoder.decodeClaimableAmount("invalid")
-    }
-
-    assertEquals(
-      "Unable to locate the MOOVE reward BigUint in contract data",
-      error.message
-    )
-  }
-
-  @Test
-  fun `empty response is rejected explicitly`() {
-    assertThrows(IllegalArgumentException::class.java) {
-      MooveRewardDecoder.decodeClaimableAmount("")
-    }
-  }
-
-  private fun encodeNestedReward(
-    prefix: ByteArray,
-    atomicAmount: BigInteger
-  ): String = Base64.getEncoder().encodeToString(
-    prefix + encodeNestedBigUint(atomicAmount)
-  )
-
-  private fun encodeNestedBigUint(
-    atomicAmount: BigInteger
-  ): ByteArray {
-    val amountBytes = atomicAmount.toByteArray().let { bytes ->
-      if (bytes.size > 1 && bytes.first() == 0.toByte()) {
-        bytes.copyOfRange(1, bytes.size)
-      } else {
-        bytes
+  fun `every truncated prefix of a real payload fails closed`() {
+    val bytes = Base64.getDecoder().decode(CowCowDataOutFixture.recorded("mainnet-104-cows"))
+    for (size in bytes.indices) {
+      assertThrows(IllegalArgumentException::class.java) {
+        MooveRewardDecoder.decodeClaimableAmount(
+          Base64.getEncoder().encodeToString(bytes.copyOf(size))
+        )
       }
     }
-    val length = amountBytes.size
-    return byteArrayOf(
-      ((length ushr 24) and 0xff).toByte(),
-      ((length ushr 16) and 0xff).toByte(),
-      ((length ushr 8) and 0xff).toByte(),
-      (length and 0xff).toByte()
-    ) + amountBytes
+  }
+
+  @Test
+  fun `unknown trailing fields fail closed`() {
+    val bytes = Base64.getDecoder().decode(CowCowDataOutFixture.recorded("mainnet-empty"))
+    assertThrows(IllegalArgumentException::class.java) {
+      MooveRewardDecoder.decodeClaimableAmount(Base64.getEncoder().encodeToString(bytes + 0.toByte()))
+    }
+  }
+
+  @Test
+  fun `legacy fragments malformed Base64 and empty input are rejected`() {
+    for (input in listOf("", "invalid", "!!!!", "contract-prefix-BwBa8xB6QAA")) {
+      assertThrows(IllegalArgumentException::class.java) {
+        MooveRewardDecoder.decodeClaimableAmount(input)
+      }
+    }
+  }
+
+  private fun assertAmount(expected: String, encoded: String) {
+    assertEquals(0, BigDecimal(expected).compareTo(MooveRewardDecoder.decodeClaimableAmount(encoded)))
   }
 }
