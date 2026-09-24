@@ -262,9 +262,9 @@ class RecoveryViewModel @Inject constructor(
         return@launch
       }
 
-      if (amountMoove.compareTo(latestSnapshot.recommendedTopUp) != 0) {
+      if (amountMoove < latestSnapshot.claimLiquidityGap) {
         failAction(
-          "Contract liquidity changed since the estimate. Review the refreshed amount before signing."
+          "Contract liquidity changed and the selected top-up no longer covers the current claim. Refresh the amount before signing."
         )
         return@launch
       }
