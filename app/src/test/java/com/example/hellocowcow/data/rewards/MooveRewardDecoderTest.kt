@@ -97,7 +97,7 @@ class MooveRewardDecoderTest {
     }
 
     assertEquals(
-      "Unable to locate the MOOVE reward amount in contract data",
+      "Unable to locate the MOOVE reward BigUint in contract data",
       error.message
     )
   }
