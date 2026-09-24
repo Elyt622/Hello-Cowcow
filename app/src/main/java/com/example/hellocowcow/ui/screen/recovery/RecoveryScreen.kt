@@ -55,6 +55,13 @@ import kotlinx.coroutines.delay
 
 private const val XEXCHANGE_TRADE_URL = "https://xexchange.com/trade"
 private val MOOVE_DISPLAY_EPSILON = BigDecimal("0.0001")
+private val TOP_UP_MARGIN_PRESETS = listOf(
+  BigDecimal("0.5"),
+  BigDecimal.ONE,
+  BigDecimal("2"),
+  BigDecimal("5")
+)
+private val ONE_HUNDRED = BigDecimal("100")
 
 @Composable
 fun RecoveryScreen(
@@ -67,6 +74,7 @@ fun RecoveryScreen(
   val transactionState by viewModel.transactionState.collectAsStateWithLifecycle()
   val activeAction by viewModel.activeAction.collectAsStateWithLifecycle()
   var showTopUpConfirmation by remember { mutableStateOf(false) }
+  var topUpMarginPercentage by remember(account.address) { mutableStateOf(BigDecimal.ONE) }
   var showClaimConfirmation by remember { mutableStateOf(false) }
   var showUnstakeConfirmation by remember { mutableStateOf(false) }
   var finalClaimConfirmationBatch by remember { mutableStateOf<RecoveryUnbondBatch?>(null) }
@@ -77,11 +85,31 @@ fun RecoveryScreen(
 
   val success = uiState as? RecoveryViewModel.UiState.Success
   val snapshot = success?.snapshot
+  val selectedTopUpAmount = snapshot?.let {
+    calculateAvailableTopUp(it, topUpMarginPercentage)
+  } ?: BigDecimal.ZERO
 
-  if (showTopUpConfirmation && snapshot != null && snapshot.recommendedTopUp > BigDecimal.ZERO) {
+  if (
+    showTopUpConfirmation &&
+    snapshot != null &&
+    snapshot.claimLiquidityGap > BigDecimal.ZERO &&
+    selectedTopUpAmount > BigDecimal.ZERO
+  ) {
+    val desiredTopUp = calculateDesiredTopUp(
+      snapshot.claimLiquidityGap,
+      topUpMarginPercentage
+    )
+    val balanceCapped = selectedTopUpAmount < desiredTopUp
+
     ConfirmationDialog(
       title = "Restore claim liquidity?",
-      text = "Send ${formatMoove(snapshot.recommendedTopUp)} MOOVE to the legacy CowCow staking contract. Balances are rechecked on-chain before xPortal is opened.",
+      text = "Send ${formatMoove(selectedTopUpAmount)} MOOVE to the legacy CowCow staking contract " +
+          "with a ${formatMarginPercentage(topUpMarginPercentage)} safety margin" +
+          if (balanceCapped) {
+            " (limited by your current wallet balance). Balances are rechecked on-chain before xPortal is opened."
+          } else {
+            ". Balances are rechecked on-chain before xPortal is opened."
+          },
       confirmLabel = "Continue to xPortal",
       onDismiss = { showTopUpConfirmation = false },
       onConfirm = {
@@ -89,7 +117,7 @@ fun RecoveryScreen(
         viewModel.requestTopUp(
           account = account,
           topic = topic,
-          amountMoove = snapshot.recommendedTopUp
+          amountMoove = selectedTopUpAmount
         )
       }
     )
@@ -168,6 +196,8 @@ fun RecoveryScreen(
         costState = costState,
         transactionState = transactionState,
         activeAction = activeAction,
+        topUpMarginPercentage = topUpMarginPercentage,
+        onTopUpMarginChange = { topUpMarginPercentage = it },
         onFundContract = { showTopUpConfirmation = true },
         onClaimRewards = { showClaimConfirmation = true },
         onUnstakeAll = { showUnstakeConfirmation = true },
@@ -200,6 +230,8 @@ private fun RecoveryDiagnostic(
   costState: RecoveryViewModel.CostUiState,
   transactionState: RecoveryViewModel.TransactionUiState,
   activeAction: RecoveryViewModel.RecoveryAction?,
+  topUpMarginPercentage: BigDecimal,
+  onTopUpMarginChange: (BigDecimal) -> Unit,
   onFundContract: () -> Unit,
   onClaimRewards: () -> Unit,
   onUnstakeAll: () -> Unit,
@@ -234,6 +266,8 @@ private fun RecoveryDiagnostic(
   ClaimFirstActions(
     snapshot = snapshot,
     transactionBusy = transactionBusy,
+    topUpMarginPercentage = topUpMarginPercentage,
+    onTopUpMarginChange = onTopUpMarginChange,
     onFundContract = onFundContract,
     onClaimRewards = onClaimRewards
   )
@@ -463,11 +497,22 @@ private fun RecoveryCostCard(
 private fun ClaimFirstActions(
   snapshot: RecoverySnapshot,
   transactionBusy: Boolean,
+  topUpMarginPercentage: BigDecimal,
+  onTopUpMarginChange: (BigDecimal) -> Unit,
   onFundContract: () -> Unit,
   onClaimRewards: () -> Unit
 ) {
   val uriHandler = LocalUriHandler.current
-  val walletCoversTopUp = snapshot.walletMooveBalance >= snapshot.recommendedTopUp
+  val desiredTopUp = calculateDesiredTopUp(
+    snapshot.claimLiquidityGap,
+    topUpMarginPercentage
+  )
+  val selectedTopUp = calculateAvailableTopUp(
+    snapshot,
+    topUpMarginPercentage
+  )
+  val walletCoversBaseTopUp = snapshot.walletMooveBalance >= snapshot.claimLiquidityGap
+  val walletCoversSelectedMargin = snapshot.walletMooveBalance >= desiredTopUp
   val claimReady = snapshot.claimableRewards > BigDecimal.ZERO &&
       snapshot.claimLiquidityGap.compareTo(BigDecimal.ZERO) == 0
   val complete = isClaimFirstComplete(snapshot)
@@ -508,23 +553,67 @@ private fun ClaimFirstActions(
 
       RecoveryStage(
         number = 2,
-        complete = snapshot.recommendedTopUp <= BigDecimal.ZERO,
+        complete = snapshot.claimLiquidityGap <= BigDecimal.ZERO,
         title = "Contract liquidity",
-        detail = if (snapshot.recommendedTopUp > BigDecimal.ZERO) {
-          "The CowCow contract needs ${formatMoove(snapshot.recommendedTopUp)} MOOVE for the pending reward claim."
+        detail = if (snapshot.claimLiquidityGap > BigDecimal.ZERO) {
+          "The CowCow contract currently needs ${formatMoove(snapshot.claimLiquidityGap)} MOOVE for the pending reward claim."
         } else {
           "Contract liquidity is sufficient for the current claim state."
         }
       )
-      if (snapshot.recommendedTopUp > BigDecimal.ZERO) {
+      if (snapshot.claimLiquidityGap > BigDecimal.ZERO) {
+        Text(
+          text = "Top-up safety margin",
+          style = MaterialTheme.typography.labelLarge
+        )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          TOP_UP_MARGIN_PRESETS.forEach { preset ->
+            val selected = preset.compareTo(topUpMarginPercentage) == 0
+            if (selected) {
+              Button(
+                onClick = { onTopUpMarginChange(preset) },
+                enabled = !transactionBusy,
+                modifier = Modifier.weight(1f)
+              ) {
+                Text(formatMarginPercentage(preset))
+              }
+            } else {
+              OutlinedButton(
+                onClick = { onTopUpMarginChange(preset) },
+                enabled = !transactionBusy,
+                modifier = Modifier.weight(1f)
+              ) {
+                Text(formatMarginPercentage(preset))
+              }
+            }
+          }
+        }
+
+        Text(
+          text = when {
+            !walletCoversBaseTopUp ->
+              "Your wallet does not yet cover the current liquidity gap."
+            !walletCoversSelectedMargin ->
+              "${formatMarginPercentage(topUpMarginPercentage)} would target ${formatMoove(desiredTopUp)} MOOVE, " +
+                  "but your current balance caps this top-up at ${formatMoove(selectedTopUp)} MOOVE."
+            else ->
+              "${formatMarginPercentage(topUpMarginPercentage)} margin → ${formatMoove(selectedTopUp)} MOOVE total top-up."
+          },
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
         Button(
           onClick = onFundContract,
-          enabled = walletCoversTopUp && !transactionBusy,
+          enabled = walletCoversBaseTopUp && !transactionBusy,
           modifier = Modifier.fillMaxWidth()
         ) {
           Text(
-            if (walletCoversTopUp) {
-              "Top up ${formatMoove(snapshot.recommendedTopUp)} MOOVE"
+            if (walletCoversBaseTopUp) {
+              "Top up ${formatMoove(selectedTopUp)} MOOVE"
             } else {
               "Acquire ${formatMoove(snapshot.amountToAcquire)} MOOVE first"
             }
@@ -1098,6 +1187,32 @@ private fun isClaimFirstComplete(snapshot: RecoverySnapshot): Boolean {
       snapshot.recommendedTopUp <= BigDecimal.ZERO &&
       snapshot.amountToAcquire <= BigDecimal.ZERO
 }
+
+private fun calculateDesiredTopUp(
+  claimLiquidityGap: BigDecimal,
+  marginPercentage: BigDecimal
+): BigDecimal {
+  if (claimLiquidityGap <= BigDecimal.ZERO) return BigDecimal.ZERO
+
+  val multiplier = BigDecimal.ONE.add(
+    marginPercentage.divide(ONE_HUNDRED)
+  )
+  return claimLiquidityGap.multiply(multiplier)
+}
+
+private fun calculateAvailableTopUp(
+  snapshot: RecoverySnapshot,
+  marginPercentage: BigDecimal
+): BigDecimal {
+  val desired = calculateDesiredTopUp(
+    snapshot.claimLiquidityGap,
+    marginPercentage
+  )
+  return desired.min(snapshot.walletMooveBalance)
+}
+
+private fun formatMarginPercentage(value: BigDecimal): String =
+  value.stripTrailingZeros().toPlainString() + "%"
 
 private fun formatMoove(value: BigDecimal): String {
   if (value > BigDecimal.ZERO && value < MOOVE_DISPLAY_EPSILON) return "< 0.0001"
