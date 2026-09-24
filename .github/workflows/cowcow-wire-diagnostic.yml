@@ -1,0 +1,88 @@
+name: CowCow public wire-schema diagnostic
+
+on:
+  push:
+    branches: [diagnostic/cowcow-wire-schema]
+
+permissions: {}
+
+jobs:
+  inspect-public-schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Read public frontend schema and query-only empty position
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import re
+          import urllib.parse
+          import urllib.request
+          from datetime import datetime, timezone
+
+          CONTRACT = 'erd1qqqqqqqqqqqqqpgqqgzzsl0re9e3u0t3mhv3jwg6zu63zssd7yqs3uu9jk'
+          ALLOWED = {'www.cowcow.io', 'cowcow.io', 'api.multiversx.com', 'gateway.multiversx.com'}
+
+          def read(url, body=None):
+              if urllib.parse.urlparse(url).hostname not in ALLOWED:
+                  raise ValueError('Unexpected host')
+              # POST is restricted to the documented read-only query endpoint.
+              if body is not None and url != 'https://api.multiversx.com/query':
+                  raise ValueError('Only read-only queries may be posted')
+              req = urllib.request.Request(url, data=None if body is None else json.dumps(body).encode(), headers={'User-Agent':'Hello-Cowcow-wire-diagnostic', 'Content-Type':'application/json'})
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  raw = response.read(18000001)
+                  if len(raw) > 18000000:
+                      raise ValueError('Response too large')
+                  return raw.decode('utf-8')
+
+          print('UTC', datetime.now(timezone.utc).isoformat())
+          scripts = []
+          for home in ['https://www.cowcow.io/', 'https://cowcow.io/']:
+              try:
+                  html = read(home)
+                  print('HTML', home, html[:10000])
+                  scripts += [urllib.parse.urljoin(home, src) for src in re.findall(r'<script[^>]*src=[\"\']([^\"\']+)', html)]
+                  try:
+                      manifest = json.loads(read(urllib.parse.urljoin(home, 'asset-manifest.json')))
+                      scripts += [urllib.parse.urljoin(home, src) for src in manifest.get('files', {}).values() if isinstance(src, str) and src.endswith('.js')]
+                  except Exception as error:
+                      print('MANIFEST', type(error).__name__, str(error))
+                  if scripts:
+                      break
+              except Exception as error:
+                  print('HOME_ERROR', home, type(error).__name__, str(error))
+          terms = ['getAllDataForUser', 'getTotalRewardsToCollect', 'claimableRewards', 'rewardsToCollect', 'UserData', 'userData']
+          for url in list(dict.fromkeys(scripts))[:20]:
+              try:
+                  source = read(url)
+                  print('SCRIPT', url, 'chars', len(source))
+                  windows = []
+                  for term in terms:
+                      matches = list(re.finditer(re.escape(term), source))
+                      print('MATCH_COUNT', term, len(matches))
+                      for match in matches[:5]:
+                          start, end = max(0, match.start()-2000), min(len(source), match.end()+6000)
+                          if any(left <= match.start() <= right for left, right in windows):
+                              continue
+                          windows.append((start,end))
+                          print('SCHEMA_CONTEXT', term, match.start(), source[start:end])
+              except Exception as error:
+                  print('SCRIPT_ERROR', url, type(error).__name__, str(error))
+          try:
+              account = json.loads(read('https://api.multiversx.com/accounts/'+CONTRACT))
+              print('CONTRACT_METADATA', json.dumps({k:account.get(k) for k in ['address','codeHash','isVerified','ownerAddress','assets']}))
+          except Exception as error:
+              print('ACCOUNT_ERROR', type(error).__name__, str(error))
+          try:
+              # Contract-as-caller: diagnostic zero position, no private user wallet.
+              query = {'scAddress':CONTRACT, 'funcName':'getAllDataForUser', 'args':[], 'caller':CONTRACT, 'value':'0'}
+              response = json.loads(read('https://api.multiversx.com/query', query))
+              print('EMPTY_POSITION_QUERY', json.dumps(response))
+              for index, data in enumerate(response.get('returnData', [])):
+                  print('EMPTY_POSITION_HEX', index, base64.b64decode(data, validate=True).hex())
+          except Exception as error:
+              print('QUERY_ERROR', type(error).__name__, str(error))
+          PY
