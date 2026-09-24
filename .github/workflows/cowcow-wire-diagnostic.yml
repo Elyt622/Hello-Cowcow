@@ -6,87 +6,62 @@ permissions: {}
 jobs:
   inspect-public-schema:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 3
     steps:
-      - name: Inspect public frontend links and contract metadata only
+      - name: Decode public read-only query using original staking ABI
         shell: bash
         run: |
           python3 - <<'PY'
-          import ast, base64, json, re, urllib.parse, urllib.request
+          import ast, base64, json, re, urllib.request
           from datetime import datetime, timezone
-          CONTRACT = 'erd1qqqqqqqqqqqqqpgqqgzzsl0re9e3u0t3mhv3jwg6zu63zssd7yqs3uu9jk'
-          def read(url):
-              host = urllib.parse.urlparse(url).hostname or ''
-              assert host in {'api.multiversx.com','gateway.multiversx.com'} or host == 'cowcow.io' or host.endswith('.cowcow.io'), host
-              with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent':'Hello-Cowcow-wire-diagnostic'}), timeout=15) as response:
-                  return response.read(18000000).decode('utf-8')
-          homes = ['https://www.cowcow.io/']
-          seen_scripts = set()
-          for home in homes:
-              if len(seen_scripts)>20: break
-              print('HOME', home)
-              try:
-                  html = read(home)
-                  scripts = [urllib.parse.urljoin(home,s) for s in re.findall(r'<script[^>]*src=[\"\']([^\"\']+)',html)]
-                  try:
-                      manifest = json.loads(read(urllib.parse.urljoin(home,'asset-manifest.json')))
-                      scripts += [urllib.parse.urljoin(home,s) for s in manifest.get('files',{}).values() if isinstance(s,str) and s.endswith('.js')]
-                  except Exception: pass
-                  for url in dict.fromkeys(scripts):
-                      if url in seen_scripts: continue
-                      seen_scripts.add(url)
-                      try:
-                          source = read(url)
-                          print('SCRIPT',url,len(source))
-                          urls = sorted(set(re.findall(r'https?://[^\s\"\'<>`\\)]+',source)))
-                          print('PUBLIC_LINKS',json.dumps([u[:300] for u in urls if any(x in u.lower() for x in ['cowcow','stake','moove'])]))
-                          for link in urls:
-                              parts = urllib.parse.urlparse(link)
-                              if parts.hostname and parts.hostname.endswith('.cowcow.io') and any(x in parts.hostname for x in ['app.','stake.','staking.','dapp.']):
-                                  candidate='https://'+parts.hostname+'/'
-                                  if candidate not in homes and len(homes)<6: homes.append(candidate)
-                          if 'getAllDataForUser' in source:
-                              for match in re.finditer(r'JSON\.parse\((\'(?:[^\'\\]|\\.)*\')\)',source):
-                                  if 'getAllDataForUser' not in match.group(1): continue
-                                  try:
-                                      data=json.loads(ast.literal_eval(match.group(1)))
-                                      print('EMBEDDED_ABI_JSON',json.dumps(data))
-                                  except Exception as error: print('ABI_PARSE_ERROR',str(error))
-                              windows=[]
-                              for term in ['getAllDataForUser','getTotalRewardsToCollect','UserData','FetchData','staked_tokens','rewardsToCollect']:
-                                  for m in list(re.finditer(re.escape(term),source))[:4]:
-                                      if any(a<=m.start()<=b for a,b in windows): continue
-                                      a,b=max(0,m.start()-1800),min(len(source),m.end()+12000)
-                                      windows.append((a,b))
-                                      print('SCHEMA_CONTEXT',term,source[a:b])
-                          elif home=='https://www.cowcow.io/':
-                              for m in list(re.finditer(r'(?i)staking|stake',source))[:8]:
-                                  print('STAKING_LINK_CONTEXT',source[max(0,m.start()-150):m.end()+350])
-                      except Exception as error: print('SCRIPT_ERROR',url,str(error))
-              except Exception as error: print('HOME_ERROR',home,str(error))
-          def leb(data,p):
-              value,shift=0,0
-              while True:
-                  b=data[p]; p+=1; value|=(b&127)<<shift
-                  if b<128: return value,p
-                  shift+=7
-          try:
-              info=json.loads(read('https://gateway.multiversx.com/address/'+CONTRACT))
-              account=info.get('data',{}).get('account',{})
-              print('ACCOUNT_KEYS',list(account))
-              code=account.get('code','')
-              raw=bytes.fromhex(code) if code.startswith('0061736d') else base64.b64decode(code)
-              print('WASM_SIZE',len(raw))
-              p=8
-              while p<len(raw):
-                  section=raw[p]; p+=1
-                  size,p=leb(raw,p); end=p+size
-                  if section==7:
-                      count,p=leb(raw,p); names=[]
-                      for _ in range(count):
-                          n,p=leb(raw,p); name=raw[p:p+n].decode(); p+=n
-                          kind=raw[p]; p+=1; idx,p=leb(raw,p); names.append(name)
-                      print('WASM_EXPORTS',json.dumps(names))
-                  p=end
-          except Exception as error: print('CODE_ERROR',type(error).__name__,str(error))
+          from decimal import Decimal
+          CONTRACT='erd1qqqqqqqqqqqqqpgqqgzzsl0re9e3u0t3mhv3jwg6zu63zssd7yqs3uu9jk'
+          CALLER='erd1fdq6nmaa62c0cz8f299ycsz0q8lyfr7q87gqpjwnweux5uu9pqcq68ejhz'
+          BUNDLE='https://staking.cowcow.io/static/js/main.19e7a970.js'
+          def request(url, body=None):
+              assert url in {BUNDLE, 'https://api.multiversx.com/query'}
+              if body is not None:
+                  assert url.endswith('/query') and body['funcName'] == 'getAllDataForUser'
+              req=urllib.request.Request(url,data=None if body is None else json.dumps(body).encode(),headers={'Content-Type':'application/json','User-Agent':'Hello-Cowcow-read-only-diagnostic'})
+              with urllib.request.urlopen(req,timeout=25) as r:
+                  return r.read(5000000).decode()
+          source=request(BUNDLE)
+          position=source.index(CONTRACT)
+          print('CONTRACT_REFERENCE',source[max(0,position-80):position+len(CONTRACT)+80])
+          abis=[]
+          for m in re.finditer(r'JSON\.parse\((\'(?:[^\'\\]|\\.)*\')\)',source):
+              if 'getAllDataForUser' in m.group(1):
+                  abis.append(json.loads(ast.literal_eval(m.group(1))))
+          assert len(abis)==1
+          abi=abis[0]
+          print('DATAOUT_ABI',json.dumps(abi['types']))
+          class Decoder:
+              def __init__(self, data): self.data=data; self.pos=0
+              def take(self,n):
+                  assert 0<=n<=len(self.data)-self.pos,'Truncated payload'
+                  result=self.data[self.pos:self.pos+n]; self.pos+=n; return result
+              def number(self,n): return int.from_bytes(self.take(n),'big')
+              def decode(self,t):
+                  if t=='u64': return self.number(8)
+                  if t=='BigUint': return self.number(self.number(4))
+                  if t=='TokenIdentifier': return self.take(self.number(4)).decode('ascii')
+                  if t.startswith('List<'):
+                      count=self.number(4); assert count<=len(self.data)
+                      return [self.decode(t[5:-1]) for _ in range(count)]
+                  fields=abi['types'][t]['fields']
+                  return {f['name']:self.decode(f['type']) for f in fields}
+          for label,address in [('empty',CONTRACT),('staking-position',CALLER)]:
+              response=json.loads(request('https://api.multiversx.com/query',{'scAddress':CONTRACT,'funcName':'getAllDataForUser','caller':address,'args':[],'value':'0'}))
+              assert response.get('returnCode')=='ok',response
+              assert len(response['returnData'])==1
+              encoded=response['returnData'][0]
+              raw=base64.b64decode(encoded,validate=True)
+              decoder=Decoder(raw)
+              result=decoder.decode('DataOut')
+              assert decoder.pos==len(raw),(decoder.pos,len(raw))
+              moove=sum(p['amount'] for p in result['rewards_accumulated_for_user'] if p['token_identifier']=='MOOVE-875539' and p['token_nonce']==0)
+              print('OBSERVED_UTC',datetime.now(timezone.utc).isoformat())
+              print('POSITION',label,'BYTES',len(raw),'STAKED',len(result['staked_nfts']),'MOOVE',Decimal(moove)/Decimal(10**18))
+              print('REAL_RETURN_DATA',label,encoded)
+              print('DECODED_DATAOUT',label,json.dumps(result))
           PY
