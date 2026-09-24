@@ -1,81 +1,69 @@
 package com.example.hellocowcow.data.recovery
 
+import com.example.hellocowcow.data.recovery.CowCowDataOutFixture.Payment
+import java.math.BigInteger
 import java.util.Base64
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class CowCowUserDataDecoderTest {
-
   @Test
-  fun `skips leading zero fields before CowCow stake count`() {
-    val bytes = byteArrayOf(
-      0x00, 0x00, // unrelated leading field from getAllDataForUser
-      0x00, 0x04, // staked Cow count
-      0x07, 0x88.toByte(),
-      0x0e, 0xb2.toByte(),
-      0x26, 0x7e,
-      0x0f, 0xde.toByte(),
-      0x01, 0x02, 0x03
-    )
-    val encoded = Base64.getEncoder().encodeToString(bytes)
-
-    assertEquals(
-      listOf("0788", "0eb2", "267e", "0fde"),
-      CowCowUserDataDecoder.decodeStakedCowNonces(encoded)
-    )
+  fun `real mainnet response decodes exactly 104 u64 nonces`() {
+    val data = CowCowUserDataDecoder.decode(CowCowDataOutFixture.recorded("mainnet-104-cows"))
+    assertEquals(104, data.stakedCowNonces.size)
+    assertEquals("02b8", data.stakedCowNonces.first())
+    assertEquals("16e5", data.stakedCowNonces.last())
+    assertEquals(BigInteger("31200"), data.shares)
+    assertEquals("MOOVE-875539", data.rewards.single().tokenIdentifier)
+    assertEquals(BigInteger("107243504303649480000000"), data.rewards.single().amount)
   }
 
   @Test
-  fun `preserves two-byte CowCow nonces used by verified exit history`() {
-    val bytes = byteArrayOf(
-      0x00, 0x04,
-      0x07, 0x88.toByte(),
-      0x0e, 0xb2.toByte(),
-      0x26, 0x7e,
-      0x0f, 0xde.toByte(),
-      0x01, 0x02, 0x03
+  fun `empty stake list stays empty when user has rewards and shares`() {
+    val encoded = CowCowDataOutFixture.encode(
+      payments = listOf(Payment("MOOVE-875539", BigInteger.TEN.pow(23)))
     )
-    val encoded = Base64.getEncoder().encodeToString(bytes)
-
-    assertEquals(
-      listOf("0788", "0eb2", "267e", "0fde"),
-      CowCowUserDataDecoder.decodeStakedCowNonces(encoded)
-    )
-  }
-
-  @Test
-  fun `normalizes legacy fixed-width low nonce to minimal hex bytes`() {
-    val bytes = byteArrayOf(
-      0x00, 0x02,
-      0x00, 0x01,
-      0x00, 0xff.toByte()
-    )
-    val encoded = Base64.getEncoder().encodeToString(bytes)
-
-    assertEquals(
-      listOf("01", "ff"),
-      CowCowUserDataDecoder.decodeStakedCowNonces(encoded)
-    )
-  }
-
-  @Test
-  fun `all-zero staking data returns empty list`() {
-    val encoded = Base64.getEncoder().encodeToString(
-      byteArrayOf(0x00, 0x00, 0x00, 0x00)
-    )
-
     assertEquals(emptyList<String>(), CowCowUserDataDecoder.decodeStakedCowNonces(encoded))
   }
 
   @Test
-  fun `truncated stake data is rejected`() {
-    val encoded = Base64.getEncoder().encodeToString(
-      byteArrayOf(0x00, 0x02, 0x07, 0x88.toByte())
-    )
+  fun `u64 nonce widths are preserved including leading and internal zero bytes`() {
+    val encoded = CowCowDataOutFixture.encode(staked = listOf(1L, 255L, 65536L, 4294967296L))
+    assertEquals(listOf("01", "ff", "010000", "0100000000"),
+      CowCowUserDataDecoder.decodeStakedCowNonces(encoded))
+  }
 
+  @Test
+  fun `unstaked entries do not become staked nonces`() {
+    val encoded = CowCowDataOutFixture.encode(unstaked = listOf(123L to 1800000000L))
+    assertEquals(emptyList<String>(), CowCowUserDataDecoder.decodeStakedCowNonces(encoded))
+  }
+
+  @Test
+  fun `zero and duplicate staked nonces are rejected`() {
+    for (nonces in listOf(listOf(0L), listOf(1L, 1L))) {
+      assertThrows(IllegalArgumentException::class.java) {
+        CowCowUserDataDecoder.decodeStakedCowNonces(CowCowDataOutFixture.encode(staked = nonces))
+      }
+    }
+  }
+
+  @Test
+  fun `impossible list size is rejected without allocating from untrusted input`() {
+    val bytes = Base64.getDecoder().decode(CowCowDataOutFixture.recorded("mainnet-empty"))
+    for (value in listOf(0xff.toByte(), 0x7f.toByte())) {
+      bytes[0] = value
+      assertThrows(IllegalArgumentException::class.java) {
+        CowCowUserDataDecoder.decode(Base64.getEncoder().encodeToString(bytes))
+      }
+    }
+  }
+
+  @Test
+  fun `incomplete all-zero data is not a valid empty DataOut`() {
     assertThrows(IllegalArgumentException::class.java) {
-      CowCowUserDataDecoder.decodeStakedCowNonces(encoded)
+      CowCowUserDataDecoder.decode(Base64.getEncoder().encodeToString(ByteArray(4)))
     }
   }
 }
